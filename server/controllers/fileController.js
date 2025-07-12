@@ -1,5 +1,25 @@
 const File = require('../models/File');
 const Analysis = require('../models/Analysis');
+const path = require('path');
+const ExcelJS = require('exceljs');
+const { parse } = require('csv-parse/sync');
+const fs = require('fs');
+
+async function extractColumnsFromFile(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.xlsx' || ext === '.xls') {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(filePath);
+    const worksheet = workbook.getWorksheet(1);
+    const headers = worksheet.getRow(1).values;
+    return headers.slice(1).map(h => (typeof h === 'object' && h !== null ? h.text : h)).filter(Boolean);
+  } else if (ext === '.csv') {
+    const fileContent = await fs.promises.readFile(filePath, 'utf-8');
+    const records = parse(fileContent, { columns: true });
+    return records.length > 0 ? Object.keys(records[0]) : [];
+  }
+  return [];
+}
 
 // @desc    Upload files
 // @route   POST /api/upload
@@ -88,6 +108,14 @@ exports.uploadFiles = async (req, res) => {
         });
 
         await newFile.save();
+        // Extract columns and update file
+        try {
+          const columns = await extractColumnsFromFile(newFile.path);
+          newFile.columns = columns;
+          await newFile.save();
+        } catch (err) {
+          console.error('Failed to extract columns:', err);
+        }
         uploadedFiles.push({
           id: newFile._id,
           filename: newFile.filename,
@@ -147,8 +175,15 @@ exports.uploadFiles = async (req, res) => {
  */
 exports.getFiles = async (req, res) => {
   try {
+    console.log('[GetFiles] Request received:', {
+      user: req.user?.email,
+      query: req.query,
+      headers: req.headers.authorization ? 'Authorization present' : 'No authorization'
+    });
+
     // Ensure user is authenticated
     if (!req.user || !req.user.email) {
+      console.log('[GetFiles] Authentication failed - no user or email');
       return res.status(401).json({ 
         success: false,
         error: 'Authentication required' 
@@ -156,6 +191,7 @@ exports.getFiles = async (req, res) => {
     }
 
     const userEmail = req.user.email;
+    console.log('[GetFiles] User email:', userEmail);
     
     // Basic query with user filter
     const query = { userEmail };
@@ -181,8 +217,12 @@ exports.getFiles = async (req, res) => {
     const limit = parseInt(req.query.limit, 10) || 10;
     const skip = (page - 1) * limit;
 
+    console.log('[GetFiles] Query:', query);
+    console.log('[GetFiles] Pagination:', { page, limit, skip });
+
     // Get total count for pagination
     const total = await File.countDocuments(query);
+    console.log('[GetFiles] Total files found:', total);
 
     // Get paginated files
     const files = await File.find(query)
@@ -191,12 +231,14 @@ exports.getFiles = async (req, res) => {
       .limit(limit)
       .select('-__v'); // Exclude version key
 
+    console.log('[GetFiles] Files retrieved:', files.length);
+
     // Calculate pagination info
     const totalPages = Math.ceil(total / limit);
     const hasNextPage = page < totalPages;
     const hasPreviousPage = page > 1;
 
-    res.status(200).json({
+    const response = {
       success: true,
       count: files.length,
       total,
@@ -204,11 +246,27 @@ exports.getFiles = async (req, res) => {
       currentPage: page,
       hasNextPage,
       hasPreviousPage,
-      data: files
+      data: {
+        files: files,
+        currentPage: page,
+        totalPages,
+        total,
+        hasNextPage,
+        hasPreviousPage
+      }
+    };
+
+    console.log('[GetFiles] Sending response:', {
+      success: response.success,
+      count: response.count,
+      total: response.total,
+      filesCount: response.data.files.length
     });
 
+    res.status(200).json(response);
+
   } catch (error) {
-    console.error('Get files error:', error);
+    console.error('[GetFiles] Error:', error);
     res.status(500).json({ 
       success: false,
       error: 'Server error fetching files',

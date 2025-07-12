@@ -91,7 +91,7 @@ const Import = () => {
   const checkFileExistsInDB = async (fileName) => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await axios.get('http://localhost:8000/api/files/getfiles', {
+      const response = await axios.get('http://localhost:8000/api/v1/files/getfiles', {
         headers: {
           'Authorization': `Bearer ${token}`
         },
@@ -149,7 +149,7 @@ const handleImport = async () => {
   try {
 
     
-    const response = await axios.post('http://localhost:8000/api/files', formData, {
+    const response = await axios.post('http://localhost:8000/api/v1/files', formData, {
       method: 'POST',
       headers: {
         'Content-Type': 'multipart/form-data',

@@ -8,7 +8,16 @@ const {
   deleteFile
 } = require('../controllers/fileController');
 
-// Apply auth middleware to all routes
+// Public test endpoint (no auth required)
+router.get('/public-test', (req, res) => {
+  res.json({ 
+    message: 'File routes are working!',
+    timestamp: new Date().toISOString(),
+    status: 'public_test'
+  });
+});
+
+// Apply auth middleware to all routes except public test
 router.use(protect);
 
 router.route('/')

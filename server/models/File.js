@@ -26,6 +26,10 @@ const fileSchema = new mongoose.Schema({
     enum: ['pending', 'processing', 'completed', 'failed'],
     default: 'pending'
   },
+  columns: {
+    type: [String],
+    default: []
+  },
 }, {
   timestamps: true
 });

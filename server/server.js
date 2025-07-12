@@ -65,7 +65,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/output', express.static(path.join(__dirname, 'output')));
 
 // Mount routers
-app.use('/api/files', fileRoutes);
+app.use('/api/v1/files', fileRoutes);
 app.use('/api/v1/analysis', analysisRoutes);
 
 // Error middleware should be last

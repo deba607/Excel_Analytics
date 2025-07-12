@@ -3,6 +3,7 @@ const router = express.Router();
 const { protect } = require('../middlewares/auth');
 const { 
   getAnalysis, 
+  generateChart,
   getAnalysisHistory, 
   exportAnalysis 
 } = require('../controllers/analysisController');
@@ -40,6 +41,15 @@ router.get('/', (req, res, next) => {
   });
   next();
 }, getAnalysis);
+
+// Generate chart endpoint
+router.post('/generate-chart', (req, res, next) => {
+  console.log('[Generate Chart Route] Request:', {
+    user: req.user?.email,
+    body: req.body
+  });
+  next();
+}, generateChart);
 
 // Get analysis history
 router.get('/history', (req, res, next) => {

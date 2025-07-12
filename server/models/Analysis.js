@@ -16,25 +16,21 @@ const analysisSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  type: {
+  chartType: {
     type: String,
     required: true,
-    enum: ['overview', 'sales', 'products'],
-    index: true
+    enum: ['bar', 'line', 'pie', 'doughnut', 'radar', 'polarArea']
   },
-  data: {
-    type: mongoose.Schema.Types.Mixed,
-    required: true
+  xAxis: {
+    type: String,
+    required: false
   },
-  hasData: {
-    type: Boolean,
-    default: false
+  yAxis: {
+    type: String,
+    required: false
   },
-  chartImages: [{
-    type: String // Path to chart image file
-  }],
   reportPath: {
-    type: String // Path to generated report (PDF/HTML)
+    type: String // Path to generated chart image
   },
   createdAt: {
     type: Date,
@@ -50,7 +46,7 @@ const analysisSchema = new mongoose.Schema({
 });
 
 // Compound index for efficient queries
-analysisSchema.index({ userEmail: 1, fileId: 1, type: 1 });
+analysisSchema.index({ userEmail: 1, fileId: 1 });
 
 // Pre-save middleware to update updatedAt
 analysisSchema.pre('save', function(next) {
@@ -59,11 +55,10 @@ analysisSchema.pre('save', function(next) {
 });
 
 // Static method to find analysis by user and file
-analysisSchema.statics.findByUserAndFile = function(userEmail, fileId, type) {
+analysisSchema.statics.findByUserAndFile = function(userEmail, fileId) {
   return this.findOne({
     userEmail,
-    fileId,
-    type
+    fileId
   }).sort({ createdAt: -1 });
 };
 

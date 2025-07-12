@@ -31,16 +31,7 @@ const menuItems = (isAdmin) => [
     icon: <FiBarChart2 className="w-5 h-5" />,
     path: '/dashboard/analysis'
   },
-  { 
-    name: 'Visualization', 
-    icon: <FiPieChart className="w-5 h-5" />,
-    path: '/dashboard/visualization'
-  },
-  ...(isAdmin ? [{
-    name: 'Admin', 
-    icon: <FiUsers className="w-5 h-5" />,
-    path: '/dashboard/admin'
-  }] : []),
+  // Removed Visualization and Admin
   { 
     name: 'Reports', 
     icon: <FiFileText className="w-5 h-5" />,

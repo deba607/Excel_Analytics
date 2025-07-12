@@ -62,7 +62,6 @@ const Analysis = () => {
   );
 
   // State management
-  const [activeTab, setActiveTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -81,152 +80,53 @@ const Analysis = () => {
     hasPreviousPage: false
   });
 
-  // Analysis types
-  const analysisTypes = [
-    { id: 'overview', label: 'Overview', icon: <FiBarChart2 />, description: 'Basic data statistics and insights' },
-    { id: 'sales', label: 'Sales', icon: <FiTrendingUp />, description: 'Sales performance and trends' },
-    { id: 'products', label: 'Products', icon: <FiPieChart />, description: 'Product analysis and performance' }
-  ];
-
-  // Chart controls state
+  // Remove analysis types and activeTab
   const chartTypes = [
     { id: 'line', label: 'Line Chart' },
     { id: 'bar', label: 'Bar Chart' },
     { id: 'pie', label: 'Pie Chart' },
-    { id: 'box', label: 'Box Plot' },
-    { id: 'scatter', label: 'Scatter Plot' }
+    { id: 'doughnut', label: 'Doughnut Chart' },
+    { id: 'radar', label: 'Radar Chart' },
+    { id: 'polarArea', label: 'Polar Area Chart' }
   ];
-  const [selectedChartType, setSelectedChartType] = useState('line');
+  const [selectedChartType, setSelectedChartType] = useState('bar');
   const [xAxis, setXAxis] = useState('');
   const [yAxis, setYAxis] = useState('');
-  const [showGrid, setShowGrid] = useState(true);
-  const [showLegend, setShowLegend] = useState(true);
-  const [showValues, setShowValues] = useState(true);
   const [fileColumns, setFileColumns] = useState([]);
 
-  // Fetch user's files
-  const fetchUserFiles = useCallback(async (page = 1, search = '') => {
-    try {
-      setIsLoadingFiles(true);
-      const params = {
-        page,
-        limit: 10,
-        ...(search && { search }),
-        sortBy: '-createdAt'
-      };
-
-      const response = await API.get('/files/getfiles', { params });
-      
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to fetch files');
-      }
-
-      const { data: files, ...paginationData } = response.data;
-      setUserFiles(files || []);
-      setPagination({
-        currentPage: paginationData.currentPage || 1,
-        totalPages: paginationData.totalPages || 1,
-        total: paginationData.total || 0,
-        hasNextPage: paginationData.hasNextPage || false,
-        hasPreviousPage: paginationData.hasPreviousPage || false
-      });
-      
-      // Auto-select first file if none selected and files are available
-      if (files && files.length > 0 && !selectedFile) {
-        setSelectedFile(files[0]._id);
-      }
-      
-    } catch (error) {
-      console.error('Error fetching files:', error);
-      // Don't show error toast if no files found - this is normal
-      if (error.response?.status !== 404) {
-        toast.error('Failed to load files');
-      }
-      setUserFiles([]);
-    } finally {
-      setIsLoadingFiles(false);
-    }
-  }, [selectedFile]);
-
-  // Fetch columns for selected file
-  const fetchFileColumns = useCallback(async () => {
-    if (!selectedFile) return;
-    try {
-      const token = localStorage.getItem('token') || token;
-      const response = await API.get(`/files/getfiles`, {
-        params: { search: '' },
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.data && response.data.data) {
-        const file = response.data.data.find(f => f._id === selectedFile);
-        if (file && file.columns && Array.isArray(file.columns) && file.columns.length > 0) {
-          setFileColumns(file.columns);
-          if (!xAxis) setXAxis(file.columns[0]);
-          if (!yAxis && file.columns.length > 1) setYAxis(file.columns[1]);
-        } else {
-          setFileColumns([]);
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching file columns:', err);
-      setFileColumns([]);
-    }
-  }, [selectedFile, xAxis, yAxis]);
-
-  // Update fileColumns when file changes or after analysis
-  useEffect(() => {
-    if (analysisData && analysisData.stats && Array.isArray(analysisData.stats.columns) && analysisData.stats.columns.length > 0) {
-      setFileColumns(analysisData.stats.columns);
-      if (!xAxis) setXAxis(analysisData.stats.columns[0]);
-      if (!yAxis && analysisData.stats.columns.length > 1) setYAxis(analysisData.stats.columns[1]);
-    } else {
-      fetchFileColumns();
-    }
-  }, [selectedFile, analysisData, fetchFileColumns]);
-
-  // Generate analysis with chart options
-  const generateAnalysis = useCallback(async () => {
+  // Analyze: only show summary and field names
+  const analyzeFile = useCallback(async () => {
     if (!selectedFile) {
       toast.error('Please select a file first');
       return;
     }
-    if (!xAxis || !yAxis) {
-      toast.error('Please select both X and Y axes');
-      return;
-    }
     try {
       setIsAnalyzing(true);
-      const params = {
-        fileId: selectedFile,
-        type: activeTab,
-        chartType: selectedChartType,
-        xAxis,
-        yAxis,
-        options: JSON.stringify({
-          grid: showGrid,
-          legend: showLegend,
-          values: showValues
-        })
-      };
-      const response = await API.get('/v1/analysis', { params });
+      const response = await API.get('/v1/analysis', { 
+        params: { fileId: selectedFile }
+      });
+      
       if (!response.data.success) {
-        throw new Error(response.data.message || 'Failed to generate analysis');
+        throw new Error(response.data.message || 'Failed to analyze file');
       }
+      
       const data = response.data.data;
-      if (!data || !data.success) {
-        setAnalysisData(null);
-        setChartData(null);
-        setTableData([]);
-        setStats([]);
-        toast.info(data?.message || 'No data found for this analysis');
-        return;
-      }
       setAnalysisData(data);
-      updateUI(data);
-      toast.success('Analysis completed successfully!');
+      
+      // Show summary and field names
+      setStats([
+        { title: 'Total Rows', value: data.totalRows },
+        { title: 'Total Columns', value: data.totalColumns },
+        { title: 'Numeric Columns', value: data.numericColumns }
+      ]);
+      
+      setFileColumns(data.allColumns || []);
+      setChartData(null);
+      setTableData([]);
+      toast.success('File analyzed successfully!');
     } catch (error) {
       console.error('Analysis error:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to generate analysis';
+      const errorMessage = error.response?.data?.message || 'Failed to analyze file';
       toast.error(errorMessage);
       setAnalysisData(null);
       setChartData(null);
@@ -235,69 +135,44 @@ const Analysis = () => {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [selectedFile, activeTab, selectedChartType, xAxis, yAxis, showGrid, showLegend, showValues]);
+  }, [selectedFile]);
 
-  // Update UI based on analysis data
-  const updateUI = (data) => {
-    if (!data) return;
-
-    // Update chart data
-    if (data.chartData) {
-      setChartData(data.chartData);
-    } else {
-      setChartData(null);
+  // Generate chart: send only required fields
+  const generateChart = useCallback(async () => {
+    if (!selectedFile || !xAxis || !yAxis) {
+      toast.error('Please select a file and both axes');
+      return;
     }
-
-    // Update table data
-    if (data.tableData) {
-      setTableData(data.tableData);
-    } else {
-      setTableData([]);
-    }
-
-    // Update stats
-    if (data.summary) {
-      const statsArray = [];
+    try {
+      setIsAnalyzing(true);
+      const response = await API.post('/v1/analysis/generate-chart', {
+        fileId: selectedFile,
+        chartType: selectedChartType,
+        xAxis,
+        yAxis
+      });
       
-      if (data.summary.totalRows) {
-        statsArray.push({ title: 'Total Rows', value: data.summary.totalRows });
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to generate chart');
       }
-      if (data.summary.totalColumns) {
-        statsArray.push({ title: 'Total Columns', value: data.summary.totalColumns });
-      }
-      if (data.summary.numericColumns) {
-        statsArray.push({ title: 'Numeric Columns', value: data.summary.numericColumns });
-      }
-      if (data.summary.totalSales) {
-        statsArray.push({ title: 'Total Sales', value: `$${data.summary.totalSales.toFixed(2)}` });
-      }
-      if (data.summary.averageSale) {
-        statsArray.push({ title: 'Average Sale', value: `$${data.summary.averageSale.toFixed(2)}` });
-      }
-      if (data.summary.totalProducts) {
-        statsArray.push({ title: 'Total Products', value: data.summary.totalProducts });
-      }
-
-      setStats(statsArray);
-    } else {
-      setStats([]);
+      
+      const data = response.data.data;
+      setAnalysisData(data);
+      setChartData(data.chartData);
+      toast.success('Chart generated successfully!');
+    } catch (error) {
+      console.error('Chart generation error:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to generate chart';
+      toast.error(errorMessage);
+    } finally {
+      setIsAnalyzing(false);
     }
-  };
+  }, [selectedFile, selectedChartType, xAxis, yAxis]);
 
   // Handle file selection
   const handleFileSelect = (e) => {
     setSelectedFile(e.target.value);
     // Clear previous analysis when file changes
-    setAnalysisData(null);
-    setChartData(null);
-    setTableData([]);
-    setStats([]);
-  };
-
-  // Handle tab change
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    // Clear current analysis when tab changes
     setAnalysisData(null);
     setChartData(null);
     setTableData([]);
@@ -328,27 +203,34 @@ const Analysis = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Export analysis
-  const handleExport = async (format) => {
+  // Add state for export format and exporting
+  const [exportFormat, setExportFormat] = useState('pdf');
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Update handleExport to send chart options and user email
+  const handleExport = async () => {
     if (!selectedFile || !analysisData) {
       toast.error('No analysis data to export');
       return;
     }
-
     try {
+      setIsExporting(true);
+      const params = {
+        fileId: selectedFile,
+        chartType: selectedChartType,
+        xAxis,
+        yAxis,
+        format: exportFormat
+      };
       const response = await API.get('/v1/analysis/export', {
-        params: {
-          fileId: selectedFile,
-          type: activeTab,
-          format
-        },
+        params,
         responseType: 'blob'
       });
-
       const url = window.URL.createObjectURL(new Blob([response.data]));
+      const ext = exportFormat;
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `analysis_${activeTab}_${new Date().toISOString().split('T')[0]}.${format}`);
+      link.setAttribute('download', `chart_${selectedChartType}_${new Date().toISOString().split('T')[0]}.${ext}`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -356,8 +238,49 @@ const Analysis = () => {
     } catch (error) {
       console.error('Export failed:', error);
       toast.error('Export failed');
+    } finally {
+      setIsExporting(false);
     }
   };
+
+  // Fetch user files
+  const fetchUserFiles = useCallback(async (page = 1, search = '') => {
+    try {
+      console.log('[Frontend] Fetching files with params:', { page, search });
+      setIsLoadingFiles(true);
+      const params = {
+        page,
+        limit: 50,
+        ...(search && { search })
+      };
+      
+      console.log('[Frontend] Making API call to /v1/files/getfiles');
+      const response = await API.get('/v1/files/getfiles', { params });
+      
+      console.log('[Frontend] API response:', response.data);
+      
+      if (response.data.success) {
+        setUserFiles(response.data.data.files || []);
+        setPagination({
+          currentPage: response.data.data.currentPage || 1,
+          totalPages: response.data.data.totalPages || 1,
+          total: response.data.data.total || 0,
+          hasNextPage: response.data.data.hasNextPage || false,
+          hasPreviousPage: response.data.data.hasPreviousPage || false
+        });
+        console.log('[Frontend] Files loaded successfully:', response.data.data.files?.length || 0);
+      } else {
+        console.error('Failed to fetch files:', response.data.message);
+        toast.error('Failed to load files');
+      }
+    } catch (error) {
+      console.error('Error fetching files:', error);
+      console.error('Error response:', error.response?.data);
+      toast.error('Failed to load files');
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  }, []);
 
   // Initial data load
   useEffect(() => {
@@ -407,9 +330,26 @@ const Analysis = () => {
                   ))}
                 </select>
                 <button
-                  onClick={generateAnalysis}
-                  disabled={!selectedFile || isAnalyzing}
+                  onClick={generateChart}
+                  disabled={!selectedFile || isAnalyzing || fileColumns.length === 0}
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <FiRefreshCw className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <FiBarChart2 className="-ml-1 mr-2 h-4 w-4" />
+                      Generate Chart
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={analyzeFile}
+                  disabled={!selectedFile || isAnalyzing}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isAnalyzing ? (
                     <>
@@ -432,68 +372,30 @@ const Analysis = () => {
               )}
             </div>
 
-            {/* Analysis Types */}
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Analysis Type</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {analysisTypes.map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => handleTabChange(type.id)}
-                    className={`p-4 rounded-lg border-2 transition-all duration-200 ${
-                      activeTab === type.id
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="text-xl">{type.icon}</div>
-                      <div className="text-left">
-                        <div className="font-medium">{type.label}</div>
-                        <div className="text-sm text-gray-500">{type.description}</div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Chart Controls - Always Row */}
             <div className="p-6 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Chart Options</h3>
-              <div className="mb-6 flex flex-col md:flex-row md:items-center md:space-x-6 space-y-4 md:space-y-0">
-                <div className="flex flex-row flex-wrap gap-2 items-center w-full">
-                  <label className="text-xs text-gray-500">Chart Type</label>
-                  <select
-                    value={selectedChartType}
-                    onChange={e => setSelectedChartType(e.target.value)}
-                    className="border rounded px-2 py-1 min-w-[140px] mr-4"
-                  >
-                    {chartTypes.map(type => (
-                      <option key={type.id} value={type.id}>{type.label}</option>
-                    ))}
-                  </select>
-                  <label className="text-xs text-gray-500 ml-4">X-Axis</label>
-                  <select value={xAxis} onChange={e => setXAxis(e.target.value)} className="border rounded px-2 py-1 min-w-[100px]">
-                    <option value="">{fileColumns.length === 0 ? 'No columns' : 'Select'}</option>
-                    {fileColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                  </select>
-                  <label className="text-xs text-gray-500 ml-2">Y-Axis</label>
-                  <select value={yAxis} onChange={e => setYAxis(e.target.value)} className="border rounded px-2 py-1 min-w-[100px]">
-                    <option value="">{fileColumns.length === 0 ? 'No columns' : 'Select'}</option>
-                    {fileColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                  </select>
-                  <button className={`ml-4 px-3 py-1 rounded border ${showGrid ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border-blue-600'}`} onClick={() => setShowGrid(g => !g)}>Grid</button>
-                  <button className={`px-3 py-1 rounded border ${showLegend ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border-blue-600'}`} onClick={() => setShowLegend(l => !l)}>Legend</button>
-                  <button className={`px-3 py-1 rounded border ${showValues ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border-blue-600'}`} onClick={() => setShowValues(v => !v)}>Values</button>
-                  <button
-                    onClick={generateAnalysis}
-                    disabled={!selectedFile || isAnalyzing || fileColumns.length === 0}
-                    className="ml-4 px-6 py-2 rounded bg-indigo-600 text-white font-semibold disabled:opacity-50"
-                  >
-                    {isAnalyzing ? 'Analyzing...' : 'Generate Chart'}
-                  </button>
-                </div>
+              <div className="mb-6 flex flex-row flex-wrap gap-2 items-center w-full">
+                <label className="text-xs text-gray-500">Chart Type</label>
+                <select
+                  value={selectedChartType}
+                  onChange={e => setSelectedChartType(e.target.value)}
+                  className="border rounded px-2 py-1 min-w-[140px] mr-4"
+                >
+                  {chartTypes.map(type => (
+                    <option key={type.id} value={type.id}>{type.label}</option>
+                  ))}
+                </select>
+                <label className="text-xs text-gray-500 ml-4">X-Axis</label>
+                <select value={xAxis} onChange={e => setXAxis(e.target.value)} className="border rounded px-2 py-1 min-w-[100px]">
+                  <option value="">{fileColumns.length === 0 ? 'No columns' : 'Select'}</option>
+                  {fileColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                </select>
+                <label className="text-xs text-gray-500 ml-2">Y-Axis</label>
+                <select value={yAxis} onChange={e => setYAxis(e.target.value)} className="border rounded px-2 py-1 min-w-[100px]">
+                  <option value="">{fileColumns.length === 0 ? 'No columns' : 'Select'}</option>
+                  {fileColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                </select>
               </div>
             </div>
 
@@ -575,18 +477,62 @@ const Analysis = () => {
                     <div className="bg-white p-6 rounded-lg border border-gray-200">
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Chart Visualization</h3>
                       <div className="h-80">
-                        <Bar
-                          data={chartData}
-                          options={{
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                              legend: {
-                                position: 'top',
+                        {selectedChartType === 'bar' && (
+                          <Bar
+                            data={chartData}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: {
+                                  position: 'top',
+                                },
                               },
-                            },
-                          }}
-                        />
+                            }}
+                          />
+                        )}
+                        {selectedChartType === 'line' && (
+                          <Line
+                            data={chartData}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: {
+                                  position: 'top',
+                                },
+                              },
+                            }}
+                          />
+                        )}
+                        {selectedChartType === 'pie' && (
+                          <Pie
+                            data={chartData}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: {
+                                  position: 'top',
+                                },
+                              },
+                            }}
+                          />
+                        )}
+                        {selectedChartType === 'doughnut' && (
+                          <Doughnut
+                            data={chartData}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: {
+                                  position: 'top',
+                                },
+                              },
+                            }}
+                          />
+                        )}
                       </div>
                     </div>
                   )}
@@ -631,35 +577,25 @@ const Analysis = () => {
                   {/* Export Options */}
                   <div className="bg-white p-6 rounded-lg border border-gray-200">
                     <h3 className="text-lg font-medium text-gray-900 mb-4">Export Analysis</h3>
-                    <div className="flex space-x-4">
-                      <button
-                        onClick={() => handleExport('json')}
-                        className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    <div className="flex space-x-4 items-center">
+                      <select
+                        value={exportFormat}
+                        onChange={e => setExportFormat(e.target.value)}
+                        className="border rounded px-2 py-1 min-w-[100px]"
                       >
-                        <FiDownload className="-ml-1 mr-2 h-4 w-4" />
-                        Export JSON
-                      </button>
+                        <option value="pdf">PDF</option>
+                        <option value="jpg">JPG</option>
+                        <option value="png">PNG</option>
+                      </select>
                       <button
-                        onClick={() => handleExport('csv')}
+                        onClick={handleExport}
                         className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        disabled={isExporting}
                       >
-                        <FiDownload className="-ml-1 mr-2 h-4 w-4" />
-                        Export CSV
+                        {isExporting ? 'Exporting...' : 'Export'}
                       </button>
                     </div>
                   </div>
-                  {/* Show generated chart image and report link if available */}
-                  {analysisData && analysisData.chartImages && analysisData.chartImages.length > 0 && (
-                    <div className="bg-white p-6 rounded-lg border border-gray-200">
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">Generated Chart</h3>
-                      <img src={`http://localhost:8000/output/${analysisData.chartImages[0].split('/').pop()}`} alt="Generated Chart" className="max-w-xl border rounded shadow" />
-                    </div>
-                  )}
-                  {analysisData && analysisData.reportPath && (
-                    <div className="bg-white p-6 rounded-lg border border-gray-200">
-                      <a href={`http://localhost:8000/output/${analysisData.reportPath.split('/').pop()}`} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline">Download PDF Report</a>
-                    </div>
-                  )}
                 </motion.div>
               )}
             </div>

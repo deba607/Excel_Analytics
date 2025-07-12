@@ -93,153 +93,10 @@ function generateBasicStats(data) {
     return typeof sampleValue === 'number' || !isNaN(Number(sampleValue));
   });
 
-  const stats = {
+  return {
     count: data.length,
     columns: columns,
     numericColumns: numericColumns
-  };
-
-  // Calculate basic stats for numeric columns
-  numericColumns.forEach(col => {
-    const values = data.map(row => Number(row[col])).filter(val => !isNaN(val));
-    if (values.length > 0) {
-      stats[col] = {
-        sum: values.reduce((a, b) => a + b, 0),
-        avg: values.reduce((a, b) => a + b, 0) / values.length,
-        min: Math.min(...values),
-        max: Math.max(...values),
-        count: values.length
-      };
-    }
-  });
-
-  return stats;
-}
-
-/**
- * Generate overview analysis
- */
-function generateOverviewAnalysis(data) {
-  const stats = generateBasicStats(data);
-  
-  if (stats.count === 0) {
-    return { success: false, message: 'No data found' };
-  }
-
-  // Create chart data for the first numeric column
-  const chartData = stats.numericColumns.length > 0 ? {
-    labels: data.slice(0, 10).map((_, index) => `Row ${index + 1}`),
-    datasets: [{
-      label: stats.numericColumns[0],
-      data: data.slice(0, 10).map(row => Number(row[stats.numericColumns[0]]) || 0),
-      backgroundColor: 'rgba(54, 162, 235, 0.2)',
-      borderColor: 'rgba(54, 162, 235, 1)',
-      borderWidth: 1
-    }]
-  } : null;
-
-  return {
-    success: true,
-    summary: {
-      totalRows: stats.count,
-      totalColumns: stats.columns.length,
-      numericColumns: stats.numericColumns.length,
-      sampleData: data.slice(0, 5)
-    },
-    chartData: chartData,
-    stats: stats
-  };
-}
-
-/**
- * Generate sales analysis
- */
-function generateSalesAnalysis(data) {
-  const stats = generateBasicStats(data);
-  
-  // Look for common sales-related columns
-  const salesColumns = stats.columns.filter(col => 
-    col.toLowerCase().includes('sales') || 
-    col.toLowerCase().includes('amount') || 
-    col.toLowerCase().includes('revenue') ||
-    col.toLowerCase().includes('price')
-  );
-
-  if (salesColumns.length === 0) {
-    return { success: false, message: 'No sales-related columns found' };
-  }
-
-  const salesData = salesColumns.map(col => {
-    const values = data.map(row => Number(row[col])).filter(val => !isNaN(val));
-    return {
-      column: col,
-      total: values.reduce((a, b) => a + b, 0),
-      average: values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0,
-      count: values.length
-    };
-  });
-
-  return {
-    success: true,
-    salesData: salesData,
-    summary: {
-      totalSales: salesData.reduce((sum, item) => sum + item.total, 0),
-      averageSale: salesData.reduce((sum, item) => sum + item.average, 0) / salesData.length,
-      totalTransactions: salesData.reduce((sum, item) => sum + item.count, 0)
-    }
-  };
-}
-
-/**
- * Generate products analysis
- */
-function generateProductsAnalysis(data) {
-  const stats = generateBasicStats(data);
-  
-  // Look for product-related columns
-  const productColumns = stats.columns.filter(col => 
-    col.toLowerCase().includes('product') || 
-    col.toLowerCase().includes('item') || 
-    col.toLowerCase().includes('name')
-  );
-
-  if (productColumns.length === 0) {
-    return { success: false, message: 'No product-related columns found' };
-  }
-
-  // Group by product and calculate stats
-  const productStats = {};
-  data.forEach(row => {
-    const productName = row[productColumns[0]] || 'Unknown';
-    if (!productStats[productName]) {
-      productStats[productName] = { count: 0, sales: 0 };
-    }
-    productStats[productName].count++;
-    
-    // Add sales if available
-    const salesColumns = stats.columns.filter(col => 
-      col.toLowerCase().includes('sales') || 
-      col.toLowerCase().includes('amount')
-    );
-    if (salesColumns.length > 0) {
-      const salesValue = Number(row[salesColumns[0]]) || 0;
-      productStats[productName].sales += salesValue;
-    }
-  });
-
-  const topProducts = Object.entries(productStats)
-    .sort((a, b) => b[1].sales - a[1].sales)
-    .slice(0, 10);
-
-  return {
-    success: true,
-    products: productStats,
-    topProducts: topProducts,
-    summary: {
-      totalProducts: Object.keys(productStats).length,
-      totalSales: Object.values(productStats).reduce((sum, product) => sum + product.sales, 0),
-      averageSales: Object.values(productStats).reduce((sum, product) => sum + product.sales, 0) / Object.keys(productStats).length
-    }
   };
 }
 
@@ -248,68 +105,50 @@ function generateProductsAnalysis(data) {
  */
 async function ensureOutputDir() {
   try {
+    await fs.access(OUTPUTS_DIR);
+  } catch (error) {
     await fs.mkdir(OUTPUTS_DIR, { recursive: true });
-  } catch (err) {
-    // Ignore if already exists
   }
 }
 
 /**
- * Helper to save chart image
+ * Save chart as image
  */
 async function saveChartImage(type, chartData, options, filename) {
   const width = 800;
   const height = 600;
-  const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height });
-  const buffer = await chartJSNodeCanvas.renderToBuffer({
-    type,
+  const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour: 'white' });
+
+  const configuration = {
+    type: type,
     data: chartData,
-    options: options || { responsive: false }
-  });
-  const outPath = path.join(OUTPUTS_DIR, filename);
-  await fs.writeFile(outPath, buffer);
-  return outPath;
+    options: {
+      ...options,
+      responsive: false,
+      animation: false,
+      plugins: {
+        legend: {
+          display: options?.legend !== false
+        }
+      }
+    }
+  };
+
+  const image = await chartJSNodeCanvas.renderToBuffer(configuration);
+  const filePath = path.join(OUTPUTS_DIR, filename);
+  await fs.writeFile(filePath, image);
+  return filePath;
 }
 
 /**
- * Helper to generate PDF report
- */
-async function generatePDFReport(summary, chartImagePaths, filename) {
-  const outPath = path.join(OUTPUTS_DIR, filename);
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument();
-    const stream = fs.createWriteStream(outPath);
-    doc.pipe(stream);
-    doc.fontSize(20).text('Analysis Report', { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).text('Summary:', { underline: true });
-    doc.moveDown();
-    Object.entries(summary).forEach(([key, value]) => {
-      doc.text(`${key}: ${JSON.stringify(value)}`);
-    });
-    doc.moveDown();
-    doc.fontSize(12).text('Charts:', { underline: true });
-    chartImagePaths.forEach((imgPath) => {
-      doc.addPage();
-      doc.image(imgPath, { fit: [500, 400], align: 'center' });
-      doc.moveDown();
-      doc.text(imgPath, { align: 'center', fontSize: 8 });
-    });
-    doc.end();
-    stream.on('finish', () => resolve(outPath));
-    stream.on('error', reject);
-  });
-}
-
-/**
- * Main analysis controller - Direct file processing
+ * Main analysis controller - Get basic file info and columns
  */
 exports.getAnalysis = async (req, res) => {
   try {
-    const { fileId, type = 'overview', chartType = 'bar', xAxis, yAxis, options } = req.query;
+    const { fileId } = req.query;
     const userEmail = req.user?.email;
 
-    console.log('[Analysis] Request:', { fileId, type, chartType, xAxis, yAxis, options, userEmail });
+    console.log('[Analysis] Request:', { fileId, userEmail });
 
     // Validate input
     if (!fileId) {
@@ -339,19 +178,12 @@ exports.getAnalysis = async (req, res) => {
     let filePath;
     let fileName = 'Unknown';
 
-    // List all files in uploads directory for debugging
-    try {
-      const filesInUploads = await fs.readdir(UPLOADS_DIR);
-      console.log('[Analysis] Files in uploads directory:', filesInUploads);
-    } catch (err) {
-      console.error('[Analysis] Could not read uploads directory:', err);
-    }
-
     if (file) {
       // File exists in database
       filePath = path.join(UPLOADS_DIR, file.filename);
       fileName = file.originalName;
       console.log('[Analysis] Using filename from DB:', file.filename);
+      
       // Double-check if file exists on disk
       try {
         await fs.access(filePath);
@@ -393,7 +225,7 @@ exports.getAnalysis = async (req, res) => {
       }
     }
 
-    // Process file
+    // Process file to get basic stats
     let data;
     try {
       console.log('[Analysis] Processing file:', fileName);
@@ -416,115 +248,167 @@ exports.getAnalysis = async (req, res) => {
       });
     }
 
-    // Generate analysis based on type
-    let analysisResult;
-    switch (type) {
-      case 'overview':
-        analysisResult = generateOverviewAnalysis(data);
-        break;
-      case 'sales':
-        analysisResult = generateSalesAnalysis(data);
-        break;
-      case 'products':
-        analysisResult = generateProductsAnalysis(data);
-        break;
-      default:
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid analysis type',
-          errorType: 'invalid_type'
-        });
-    }
+    // Generate basic statistics
+    const stats = generateBasicStats(data);
 
-    if (!analysisResult.success) {
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalRows: stats.count,
+        totalColumns: stats.columns.length,
+        numericColumns: stats.numericColumns.length,
+        allColumns: stats.columns
+      }
+    });
+  } catch (error) {
+    console.error('[Analysis] Unexpected error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      errorType: 'server_error'
+    });
+  }
+};
+
+/**
+ * Generate chart controller
+ */
+exports.generateChart = async (req, res) => {
+  try {
+    const { fileId, chartType, xAxis, yAxis } = req.body;
+    const userEmail = req.user?.email;
+
+    console.log('[GenerateChart] Request:', { fileId, chartType, xAxis, yAxis, userEmail });
+
+    // Validate input
+    if (!fileId || !chartType || !xAxis || !yAxis) {
       return res.status(400).json({
         success: false,
-        message: analysisResult.message,
-        errorType: 'analysis_failed'
+        message: 'File ID, chart type, X axis, and Y axis are required',
+        errorType: 'missing_parameters'
       });
     }
 
-    await ensureOutputDir();
-
-    // --- Chart Generation Section ---
-    // Determine chart data based on xAxis and yAxis
-    let chartData = analysisResult.chartData;
-    if (xAxis && yAxis && data.length > 0) {
-      // Build chartData dynamically from selected axes
-      const labels = data.map(row => row[xAxis]);
-      const values = data.map(row => Number(row[yAxis]));
-      chartData = {
-        labels,
-        datasets: [{
-          label: yAxis,
-          data: values,
-          backgroundColor: 'rgba(54, 162, 235, 0.2)',
-          borderColor: 'rgba(54, 162, 235, 1)',
-          borderWidth: 1
-        }]
-      };
+    if (!userEmail) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+        errorType: 'not_authenticated'
+      });
     }
 
-    // Chart options (grid, legend, values)
-    let chartOptions = { responsive: false };
-    if (options) {
-      try {
-        const parsed = typeof options === 'string' ? JSON.parse(options) : options;
-        chartOptions = { ...chartOptions, ...parsed };
-      } catch (e) { /* ignore */ }
-    }
-
-    // Only generate the requested chart type
-    const chartImages = [];
-    let chartImagePath = null;
-    if (chartData) {
-      try {
-        const filename = `chart_${chartType}_${Date.now()}.png`;
-        chartImagePath = await saveChartImage(chartType, chartData, chartOptions, filename);
-        chartImages.push(chartImagePath);
-      } catch (err) {
-        console.error(`[Analysis] Failed to generate ${chartType} chart:`, err);
-      }
-    }
-
-    // Generate PDF report
-    let reportPath = null;
+    // Get file from database
+    let file = null;
     try {
-      reportPath = await generatePDFReport(analysisResult.summary || {}, chartImages, `report_${Date.now()}.pdf`);
-    } catch (err) {
-      console.error('[Analysis] Failed to generate PDF report:', err);
+      file = await File.findById(fileId);
+    } catch (error) {
+      console.log('[GenerateChart] File not found in database');
+      return res.status(404).json({
+        success: false,
+        message: 'File not found',
+        errorType: 'file_not_found'
+      });
     }
 
-    // Save analysis to database if file exists in DB
-    if (file) {
-      try {
-        await Analysis.create({
-          userEmail: userEmail,
-          fileId: file._id,
-          fileName: file.originalName,
-          type: type,
-          data: analysisResult,
-          hasData: true,
-          chartImages,
-          reportPath
-        });
-        console.log('[Analysis] Saved to database with chart images and report');
-      } catch (error) {
-        console.log('[Analysis] Error saving to database:', error);
-        // Continue even if saving fails
-      }
+    if (!file) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found',
+        errorType: 'file_not_found'
+      });
+    }
+
+    const filePath = path.join(UPLOADS_DIR, file.filename);
+    
+    // Check if file exists on disk
+    try {
+      await fs.access(filePath);
+    } catch (error) {
+      console.error('[GenerateChart] File not found on disk:', filePath);
+      return res.status(404).json({
+        success: false,
+        message: 'File not found on disk',
+        errorType: 'file_not_on_disk'
+      });
+    }
+
+    // Process file
+    let data;
+    try {
+      data = await processFile(filePath);
+    } catch (error) {
+      console.error('[GenerateChart] File processing error:', error);
+      return res.status(400).json({
+        success: false,
+        message: `Error processing file: ${error.message}`,
+        errorType: 'file_processing_error'
+      });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No data found in file',
+        errorType: 'no_data'
+      });
+    }
+
+    // Validate axes exist in data
+    const columns = Object.keys(data[0]);
+    if (!columns.includes(xAxis) || !columns.includes(yAxis)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected axes do not exist in the data',
+        errorType: 'invalid_axes'
+      });
+    }
+
+    // Generate chart data
+    const labels = data.map(row => row[xAxis]);
+    const values = data.map(row => Number(row[yAxis]));
+    
+    const chartData = {
+      labels,
+      datasets: [{
+        label: yAxis,
+        data: values,
+        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 1
+      }]
+    };
+
+    // Generate chart image
+    await ensureOutputDir();
+    const filename = `chart_${chartType}_${Date.now()}.png`;
+    const chartImagePath = await saveChartImage(chartType, chartData, {}, filename);
+
+    // Save analysis to database
+    try {
+      await Analysis.create({
+        userEmail: userEmail,
+        fileId: file._id,
+        fileName: file.originalName,
+        chartType: chartType,
+        xAxis: xAxis,
+        yAxis: yAxis,
+        reportPath: chartImagePath
+      });
+      console.log('[GenerateChart] Saved to database');
+    } catch (error) {
+      console.log('[GenerateChart] Error saving to database:', error);
+      // Continue even if saving fails
     }
 
     return res.status(200).json({
       success: true,
       data: {
-        ...analysisResult,
-        chartImages,
-        reportPath
+        chartImagePath: chartImagePath,
+        chartData: chartData
       }
     });
   } catch (error) {
-    console.error('[Analysis] Unexpected error:', error);
+    console.error('[GenerateChart] Unexpected error:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -576,8 +460,10 @@ exports.getAnalysisHistory = async (req, res) => {
  */
 exports.exportAnalysis = async (req, res) => {
   try {
-    const { fileId, type, format = 'json' } = req.query;
+    const { fileId, chartType, xAxis, yAxis, format = 'png' } = req.query;
     const userEmail = req.user?.email;
+
+    console.log('[ExportAnalysis] Request:', { fileId, chartType, xAxis, yAxis, format, userEmail });
 
     if (!userEmail) {
       return res.status(401).json({
@@ -586,48 +472,136 @@ exports.exportAnalysis = async (req, res) => {
       });
     }
 
-    // Get the latest analysis
+    // Find the analysis record matching all chart options
     const analysis = await Analysis.findOne({
       fileId,
-      type,
-      userEmail
+      userEmail,
+      chartType,
+      xAxis,
+      yAxis
     }).sort({ createdAt: -1 });
 
     if (!analysis) {
+      console.log('[ExportAnalysis] Analysis not found for', { fileId, userEmail, chartType, xAxis, yAxis });
       return res.status(404).json({
         success: false,
-        message: 'Analysis not found'
+        message: 'Analysis not found for the specified chart options.'
       });
     }
 
-    let exportData;
+    if (!analysis.reportPath) {
+      console.log('[ExportAnalysis] No chart image found for analysis');
+      return res.status(404).json({
+        success: false,
+        message: 'No chart image found for this analysis.'
+      });
+    }
+
+    const resolvedPath = require('path').resolve(analysis.reportPath);
+    const fs = require('fs');
+    const sharp = require('sharp');
+    const PDFDocument = require('pdfkit');
+
+    // Determine the original file extension
+    const originalExt = analysis.reportPath.split('.').pop().toLowerCase();
     let contentType;
     let filename;
 
-    switch (format) {
-      case 'json':
-        exportData = JSON.stringify(analysis.data, null, 2);
-        contentType = 'application/json';
-        filename = `analysis_${type}_${Date.now()}.json`;
-        break;
-      case 'csv':
-        // Convert to CSV format
-        const csvData = convertToCSV(analysis.data);
-        exportData = csvData;
-        contentType = 'text/csv';
-        filename = `analysis_${type}_${Date.now()}.csv`;
-        break;
-      default:
-        return res.status(400).json({
-          success: false,
-          message: 'Unsupported export format'
-        });
+    if (format === 'pdf') {
+      contentType = 'application/pdf';
+      filename = `chart_${analysis.chartType}_${Date.now()}.pdf`;
+    } else if (format === 'jpg' || format === 'jpeg' || format === 'png') {
+      contentType = format === 'png' ? 'image/png' : 'image/jpeg';
+      filename = `chart_${analysis.chartType}_${Date.now()}.${format}`;
+    } else {
+      console.log('[ExportAnalysis] Unsupported export format:', format);
+      return res.status(400).json({
+        success: false,
+        message: 'Unsupported export format. Only PDF, JPG, and PNG are allowed.'
+      });
     }
 
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(exportData);
-
+    // Conversion logic
+    if ((format === originalExt) || (format === 'jpeg' && originalExt === 'jpg') || (format === 'jpg' && originalExt === 'jpeg')) {
+      // No conversion needed, just send the file
+      fs.access(resolvedPath, fs.constants.F_OK, (err) => {
+        if (err) {
+          console.log('[ExportAnalysis] File does not exist on disk:', resolvedPath);
+          return res.status(404).json({
+            success: false,
+            message: 'Export file does not exist on disk.'
+          });
+        }
+        console.log('[ExportAnalysis] Sending file:', resolvedPath);
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.sendFile(resolvedPath);
+      });
+    } else if (format === 'pdf') {
+      // Convert image to PDF
+      try {
+        // Check if file exists and is a valid image
+        fs.access(resolvedPath, fs.constants.F_OK, async (err) => {
+          if (err) {
+            console.error('[ExportAnalysis] PDF: File does not exist on disk:', resolvedPath);
+            return res.status(404).json({
+              success: false,
+              message: 'Export file does not exist on disk.'
+            });
+          }
+          // Try to load the image with sharp to verify it's a valid image
+          try {
+            await sharp(resolvedPath).metadata();
+          } catch (imgErr) {
+            console.error('[ExportAnalysis] PDF: File is not a valid image:', resolvedPath, imgErr);
+            return res.status(400).json({
+              success: false,
+              message: 'Export file is not a valid image.'
+            });
+          }
+          try {
+            const doc = new PDFDocument({ autoFirstPage: false });
+            res.setHeader('Content-Type', contentType);
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            doc.pipe(res);
+            doc.addPage({ size: [800, 600] });
+            doc.image(resolvedPath, 0, 0, { width: 800, height: 600 });
+            doc.end();
+          } catch (pdfErr) {
+            console.error('[ExportAnalysis] Error generating PDF:', pdfErr);
+            return res.status(500).json({
+              success: false,
+              message: 'Error generating PDF.'
+            });
+          }
+        });
+      } catch (err) {
+        console.error('[ExportAnalysis] Error in PDF export logic:', err);
+        return res.status(500).json({
+          success: false,
+          message: 'Error generating PDF.'
+        });
+      }
+    } else if (format === 'jpg' || format === 'jpeg' || format === 'png') {
+      // Convert image to requested format using sharp
+      try {
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        const transformer = sharp(resolvedPath).toFormat(format === 'jpg' ? 'jpeg' : format);
+        transformer.pipe(res);
+      } catch (err) {
+        console.error('[ExportAnalysis] Error converting image:', err);
+        return res.status(500).json({
+          success: false,
+          message: 'Error converting image.'
+        });
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Unsupported export format.'
+      });
+    }
   } catch (error) {
     console.error('[Export Analysis] Error:', error);
     return res.status(500).json({
