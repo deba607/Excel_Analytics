@@ -15,7 +15,7 @@ import axios from 'axios';
 
 const Import = () => {
   // Authentication
-  const { userEmail, isLoggedIn, LogoutUser, login } = useAuth();
+  const { userEmail, isLoggedIn, LogoutUser } = useAuth();
   const navigate = useNavigate();
   
   // State
