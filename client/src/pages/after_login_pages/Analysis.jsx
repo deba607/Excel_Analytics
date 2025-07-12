@@ -13,23 +13,21 @@ Chart.register(...registerables);
 const Analysis = () => {
   const { userEmail, token } = useAuth();
 
-  // Debug logging
-  console.log('Analysis component - userEmail:', userEmail);
-  console.log('Analysis component - token:', token ? 'Present' : 'Missing');
-
   const API = axios.create({
     baseURL: 'http://localhost:8000/api',
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      'Content-Type': 'application/json'
     }
   });
 
   // Add request interceptor to include token
   API.interceptors.request.use((config) => {
-    const currentToken = localStorage.getItem('token');
-    if (currentToken) {
+    const currentToken = localStorage.getItem('token') || token;
+    if (currentToken && currentToken !== 'null' && currentToken !== 'undefined') {
       config.headers.Authorization = `Bearer ${currentToken}`;
+      console.log('Sending request with token:', currentToken.substring(0, 20) + '...');
+    } else {
+      console.log('No valid token found');
     }
     return config;
   });
@@ -98,8 +96,6 @@ const Analysis = () => {
       }
 
       const { data: files, ...paginationData } = response.data;
-      
-      console.log('Files received:', files);
       setUserFiles(files || []);
       setPagination({
         currentPage: paginationData.currentPage || 1,
@@ -112,12 +108,16 @@ const Analysis = () => {
       // Auto-select first file if none selected and files are available
       if (files && files.length > 0 && !selectedFile) {
         setSelectedFile(files[0]._id);
-        console.log('Auto-selected file:', files[0]._id);
       }
       
       return { files, pagination: paginationData };
     } catch (error) {
-      console.error('Error fetching files:', error);
+      console.error('Fetch files error details:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        url: error.config?.url
+      });
       toast.error('Failed to load files');
       setUserFiles([]);
       throw error;
@@ -129,13 +129,11 @@ const Analysis = () => {
   // Fetch analysis data
   const fetchAnalysisData = useCallback(async () => {
     if (!selectedFile) {
-      console.log('No file selected for analysis');
       return;
     }
 
     try {
       setIsLoading(true);
-      console.log('Generating new analysis for file:', selectedFile, 'type:', activeTab);
       
       const params = {
         fileId: selectedFile,
@@ -143,18 +141,14 @@ const Analysis = () => {
         generateNew: true // Flag to generate new analysis
       };
       
-      console.log('Analysis API params:', params);
-      
+      console.log('Fetching analysis with params:', params);
       const response = await API.get('/v1/analysis', { params });
-      
-      console.log('Analysis API response:', response.data);
       
       if (!response.data.success) {
         throw new Error(response.data.error || 'Failed to generate analysis');
       }
       
       const data = response.data.data;
-      console.log('New analysis data received:', data);
       
       if (data === null) {
         // No data found
@@ -171,8 +165,12 @@ const Analysis = () => {
         toast.success('Analysis completed successfully!');
       }
     } catch (error) {
-      console.error('Analysis error:', error);
-      console.error('Error details:', error.response?.data);
+      console.error('Analysis error details:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        url: error.config?.url
+      });
       toast.error('Failed to generate analysis');
       setAnalysisData(null);
       setChartData(null);
@@ -186,11 +184,8 @@ const Analysis = () => {
   // Update UI based on analysis data
   const updateUI = (data) => {
     if (!data) {
-      console.log('No analysis data to update UI');
       return;
     }
-
-    console.log('Updating UI with data:', data);
 
     if (activeTab === 'overview') {
       // Handle overview data
@@ -256,8 +251,6 @@ const Analysis = () => {
 
     setIsFetchingAnalysis(true);
     try {
-      console.log('Fetching existing analysis for file:', selectedFile, 'type:', activeTab);
-      
       const response = await API.get('/v1/analysis', {
         params: {
           fileId: selectedFile,
@@ -271,7 +264,6 @@ const Analysis = () => {
       }
       
       const data = response.data.data;
-      console.log('Existing analysis data received:', data);
       
       if (data === null) {
         // No existing analysis found
@@ -288,7 +280,6 @@ const Analysis = () => {
         toast.success('Existing analysis loaded successfully!');
       }
     } catch (error) {
-      console.error('Get analysis error:', error);
       toast.error('Failed to fetch existing analysis');
       setAnalysisData(null);
       setChartData(null);
@@ -333,18 +324,51 @@ const Analysis = () => {
       link.remove();
       toast.success('Export started successfully');
     } catch (error) {
-      console.error('Export failed:', error);
       toast.error('Export failed');
     }
+  };
+
+  // Check token status
+  const checkTokenStatus = () => {
+    const token = localStorage.getItem('token');
+    const userEmail = localStorage.getItem('userEmail');
+    console.log('Token status:', {
+      hasToken: !!token,
+      tokenLength: token ? token.length : 0,
+      tokenStart: token ? token.substring(0, 20) + '...' : 'none',
+      userEmail,
+      contextToken: token
+    });
   };
 
   // Test API connection
   const testAPIConnection = async () => {
     try {
-      console.log('Testing API connection...');
-      const response = await API.get('/v1/analysis/test');
-      console.log('API test response:', response.data);
-      toast.success('API connection working!');
+      // Test basic API endpoint
+      const basicResponse = await fetch('http://localhost:8000/api/test');
+      const basicData = await basicResponse.json();
+      console.log('Basic API test:', basicData);
+      
+      // Test auth endpoint
+      const authResponse = await fetch('http://localhost:8000/api/auth-test', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const authData = await authResponse.json();
+      console.log('Auth test:', authData);
+      
+      // Test analysis public endpoint
+      const analysisResponse = await fetch('http://localhost:8000/api/v1/analysis/public-test');
+      const analysisData = await analysisResponse.json();
+      console.log('Analysis public test:', analysisData);
+      
+      // Test analysis protected endpoint
+      const protectedResponse = await API.get('/v1/analysis/test');
+      const protectedData = await protectedResponse.data;
+      console.log('Analysis protected test:', protectedData);
+      
+      toast.success('All API tests passed!');
     } catch (error) {
       console.error('API test failed:', error);
       toast.error('API connection failed');
@@ -353,19 +377,10 @@ const Analysis = () => {
 
   // Initial data load
   useEffect(() => {
-    console.log('Analysis component mounted');
+    console.log('Analysis component mounted, checking token...');
+    checkTokenStatus();
     fetchUserFiles();
   }, [fetchUserFiles]);
-
-  // Log when files are loaded
-  useEffect(() => {
-    console.log('User files updated:', userFiles.length, 'files');
-  }, [userFiles]);
-
-  // Log when selected file changes
-  useEffect(() => {
-    console.log('Selected file changed:', selectedFile);
-  }, [selectedFile]);
 
   // Fetch analysis when file or tab changes
   useEffect(() => {
@@ -424,6 +439,12 @@ const Analysis = () => {
                     className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   >
                     Test API
+                  </button>
+                  <button
+                    onClick={checkTokenStatus}
+                    className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    Check Token
                   </button>
                   <button
                     onClick={() => fetchUserFiles()}

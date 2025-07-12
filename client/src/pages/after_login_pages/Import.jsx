@@ -16,7 +16,6 @@ import axios from 'axios';
 const Import = () => {
   // Authentication
   const { userEmail, isLoggedIn, LogoutUser, login } = useAuth();
-  console.log('User from context:', userEmail);
   const navigate = useNavigate();
   
   // State
@@ -110,9 +109,7 @@ const handleImport = async () => {
   formData.append('userEmail', userEmail);
 
   try {
-    console.log('Uploading file:', file.name);
-    console.log('User email:', userEmail);
-    console.log('Auth token:', login?.token);
+
     
     const response = await axios.post('http://localhost:8000/api/files', formData, {
       method: 'POST',

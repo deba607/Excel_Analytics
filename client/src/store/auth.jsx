@@ -57,10 +57,7 @@ export const AuthProvider = ({ children }) => {
 
   // Use useMemo for isLoggedIn to prevent unnecessary re-renders
   const isLoggedIn = useMemo(() => {
-    const loggedIn = !!token;
-    console.log('Auth Store - token:', token);
-    console.log('Auth Store - isLoggedIn:', loggedIn);
-    return loggedIn;
+    return !!token;
   }, [token]);
 
   const LogoutUser = () => {
@@ -89,7 +86,6 @@ export const AuthProvider = ({ children }) => {
 
   // Test function to manually set authentication state
   const setTestAuth = useCallback((email, testToken = 'test-token') => {
-    console.log('Setting test auth:', email, testToken);
     setToken(testToken);
     setuserEmail(email);
     localStorage.setItem('token', testToken);

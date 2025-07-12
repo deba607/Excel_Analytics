@@ -169,11 +169,9 @@ const Login = () => {
     
     // Reset form
     setFormData({ email: '', password: '' });
-    console.log('User email stored:', formData.email);
 
     
   } catch (error) {
-    console.error('OTP Verification Error:', error);
     const errorMessage = error.response?.data?.message || error.message || 'Failed to verify OTP';
     setErrors(prev => ({ ...prev, otp: errorMessage }));
     toast.error(errorMessage);

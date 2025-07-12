@@ -76,28 +76,21 @@ const ProtectedRoute = ({ children, requiredRole = 'user' }) => {
   const { isLoggedIn, user } = useAuth();
   const location = useLocation();
 
-  console.log('ProtectedRoute - isLoggedIn:', isLoggedIn);
-  console.log('ProtectedRoute - location:', location.pathname);
-
   return useMemo(() => {
     // If authentication state is still loading, show nothing or a loading spinner
     if (isLoggedIn === undefined) {
-      console.log('ProtectedRoute - Loading state');
       return <div className="flex items-center justify-center h-screen">Loading...</div>;
     }
 
     if (!isLoggedIn) {
-      console.log('ProtectedRoute - Not logged in, redirecting to login');
       return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
     // Optional: Add role-based access control
     if (requiredRole === 'admin' && (!user || user.role !== 'admin')) {
-      console.log('ProtectedRoute - Unauthorized access');
       return <Navigate to="/unauthorized" replace />;
     }
 
-    console.log('ProtectedRoute - Access granted');
     return children || <Outlet />;
   }, [isLoggedIn, user, requiredRole, location, children]);
 };
@@ -107,16 +100,11 @@ const PublicRoute = () => {
   const { isLoggedIn } = useAuth();
   const location = useLocation();
 
-  console.log('PublicRoute - isLoggedIn:', isLoggedIn);
-  console.log('PublicRoute - location:', location.pathname);
-
   return useMemo(() => {
     if (isLoggedIn) {
-      console.log('PublicRoute - Already logged in, redirecting to dashboard');
       const from = location.state?.from?.pathname || '/dashboard';
       return <Navigate to={from} replace />;
     }
-    console.log('PublicRoute - Not logged in, showing public content');
     return <Outlet />;
   }, [isLoggedIn, location]);
 };

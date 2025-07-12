@@ -131,10 +131,8 @@ exports.resendOTP = async (req, res) => {
 
 
 exports.register = async (req, res) => {
-  console.log('Register request received:', req.body); // Add this line
   try {
     const { name, email, password } = req.body;
-    console.log('Processing registration for:', email); // Add this line
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });

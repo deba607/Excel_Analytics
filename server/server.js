@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const connectDb = require('./utils/db');
-const { errorMiddleware } = require('./middlewares/error-middleware');
+const { errorHandler } = require('./utils/errorResponse');
 const bodyParser = require('body-parser');
 const userauthRouter = require('./router/userauthRouter');
 const userauthLoginRouter = require('./router/userauthLogin');
@@ -24,18 +24,31 @@ app.use(cors(corsOptions));
 
 
 app.use(express.json());
-
-
 app.use(bodyParser.json());
 
-
-
-
-app.use(errorMiddleware);
-
 app.get('/excel_analytics', (req, res) => {
-  console.log('Test route hit');
   res.json({ message: 'Server is working!' });
+});
+
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'API is working!',
+    timestamp: new Date().toISOString(),
+    env: {
+      hasSecretKey: !!process.env.SECRET_KEY,
+      nodeEnv: process.env.NODE_ENV
+    }
+  });
+});
+
+app.get('/api/auth-test', (req, res) => {
+  const token = req.headers.authorization;
+  res.json({ 
+    message: 'Auth test endpoint',
+    hasToken: !!token,
+    tokenType: token ? token.split(' ')[0] : 'none',
+    timestamp: new Date().toISOString()
+  });
 });
 
 
@@ -55,10 +68,12 @@ app.use('/outputs', express.static(path.join(__dirname, 'outputs')));
 app.use('/api/files', fileRoutes);
 app.use('/api/v1/analysis', analysisRoutes);
 
+// Error middleware should be last
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 8000;
-connectDb().then(()=>{
-app.listen(PORT, () => {
-  console.log(`Server is running on port http://localhost:${PORT}`);
+connectDb().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server is running on port http://localhost:${PORT}`);
   });
 });

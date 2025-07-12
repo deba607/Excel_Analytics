@@ -57,11 +57,7 @@ const Dashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Debug logging
-  console.log('Dashboard - isLoggedIn:', isLoggedIn);
-  console.log('Dashboard - userEmail:', userEmail);
-  console.log('Dashboard - localStorage token:', localStorage.getItem('token'));
-  console.log('Dashboard - localStorage userEmail:', localStorage.getItem('userEmail'));
+
 
 
   const toggleSidebar = useCallback(() => {
@@ -81,7 +77,6 @@ const Dashboard = () => {
       toast.success('Successfully logged out');
       navigate('/login', { replace: true });
     } catch (error) {
-      console.error('Logout failed:', error);
       toast.error('Failed to log out. Please try again.');
     } finally {
       setIsLoading(false);

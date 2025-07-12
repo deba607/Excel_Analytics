@@ -36,9 +36,6 @@ exports.Contact = async (req, res) => {
       `,
     });
 
-    console.log('Message sent: %s', info.messageId);
-    console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
-
     res.status(200).json({ success: true });
   } catch (error) {
     console.error('Error sending email:', error);

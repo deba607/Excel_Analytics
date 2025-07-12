@@ -46,8 +46,8 @@ userSchema.pre("save", async function(next) {
         }
     )
       } catch (err) {
-        console.log("Error", err);
-        }
+        throw err;
+      }
   };
 
 // Define the model or the collection name

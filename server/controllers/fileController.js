@@ -6,10 +6,6 @@ const Analysis = require('../models/Analysis');
 // @access  Private
 exports.uploadFiles = async (req, res) => {
   try {
-    console.log('File upload request received');
-    console.log('Files:', req.files);
-    console.log('Body:', req.body);
-    console.log('User:', req.user);
     
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ 
@@ -222,7 +218,6 @@ exports.deleteFile = async (req, res) => {
 
     // Delete all analysis records for this file
     await Analysis.deleteMany({ fileId: fileId, userEmail: userEmail });
-    console.log(`Deleted analysis records for file ${file.originalName}`);
 
     // Delete the file record
     await File.findByIdAndDelete(fileId);
@@ -234,7 +229,6 @@ exports.deleteFile = async (req, res) => {
     
     try {
       await fs.unlink(filePath);
-      console.log(`Deleted file from disk: ${filePath}`);
     } catch (error) {
       console.error(`Error deleting file from disk: ${error.message}`);
       // Continue even if file deletion fails

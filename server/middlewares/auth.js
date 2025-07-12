@@ -10,6 +10,7 @@ const protect = async (req, res, next) => {
 
   // Defensive check for missing, null, or undefined tokens
   if (!token || token === 'null' || token === 'undefined' || token.trim() === '') {
+    console.log('Auth failed: No token provided');
     return res.status(401).json({
       success: false,
       error: 'Not authorized, token missing or invalid',
@@ -21,6 +22,7 @@ const protect = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.SECRET_KEY);
     // Get user from the token
     req.user = await User.findById(decoded.userId).select('-password');
+    console.log('Auth successful for user:', req.user?.email);
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);

@@ -3,6 +3,14 @@ const router = express.Router();
 const { protect } = require('../middlewares/auth');
 const { getAnalysis, exportAnalysis, getAnalysisHistory, generateAnalysis } = require('../controllers/analysisController');
 
+// Test endpoint without auth (before protect middleware)
+router.get('/public-test', (req, res) => {
+  res.json({ 
+    message: 'Analysis public test endpoint',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Protected routes (require authentication)
 router.use(protect);
 
@@ -16,7 +24,10 @@ router.get('/test', (req, res) => {
 });
 
 // Get analysis data
-router.get('/', getAnalysis);
+router.get('/', (req, res, next) => {
+  console.log('Analysis route hit:', req.url, 'User:', req.user?.email);
+  next();
+}, getAnalysis);
 
 // Get analysis history
 router.get('/history', getAnalysisHistory);

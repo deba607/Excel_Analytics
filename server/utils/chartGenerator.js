@@ -30,7 +30,6 @@ class ChartGenerator {
             this.worksheet.getCell(titleCol + 1, avgRow + 1).value = 'Generated:';
             this.worksheet.getCell(titleCol + 2, avgRow + 1).value = new Date().toLocaleString();
 
-            console.log(`Chart title added at ${startCell}: ${title}`);
             return true;
         } catch (error) {
             console.error('Error creating column chart:', error);
@@ -61,7 +60,6 @@ class ChartGenerator {
             this.worksheet.getCell(titleCol + 1, avgRow + 1).value = 'Generated:';
             this.worksheet.getCell(titleCol + 2, avgRow + 1).value = new Date().toLocaleString();
 
-            console.log(`Chart title added at ${startCell}: ${title}`);
             return true;
         } catch (error) {
             console.error('Error creating pie chart:', error);

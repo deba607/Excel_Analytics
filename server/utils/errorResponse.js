@@ -68,7 +68,7 @@ const errorHandler = (err, _req, res, _next) => {
   error.message = err.message;
 
   // Log to console for development
-  console.error(err.stack.red);
+  console.error(err.stack);
 
   // Handle specific error types
   if (err.name === 'CastError') {
@@ -128,4 +128,4 @@ const asyncHandler = (fn) => (req, res, next) => {
     .catch(next);
 };
 
-export { ErrorResponse, errorHandler, asyncHandler };
+module.exports = { ErrorResponse, errorHandler, asyncHandler };

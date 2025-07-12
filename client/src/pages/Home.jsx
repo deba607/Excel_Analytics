@@ -56,14 +56,11 @@ const RecentActivityItem = ({ icon, title, time, description }) => (
 );
 
 const Home = () => {
-  console.log('Home component rendered');
-  
   // Test authentication
   const { setTestAuth, isLoggedIn, userEmail } = useAuth();
   
   const handleTestAuth = () => {
     setTestAuth('test@example.com');
-    console.log('Test auth set');
   };
   
   const quickActions = [
@@ -173,7 +170,7 @@ const Home = () => {
               title={action.title}
               description={action.description}
               actionText={action.actionText}
-              onClick={() => console.log(`Navigating to ${action.path}`)}
+              onClick={() => {}}
             />
           ))}
         </div>

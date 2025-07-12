@@ -16,10 +16,7 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   const filetypes = /.xlsx|.xls|.csv|.json/;
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  //const mimetype = filetypes.test(file.mimetype);
-  console.log('Extension:', extname);
-  console.log('File name:', path.extname(file.originalname).toLowerCase());
-  if (extname /*|| mimetype*/) {
+  if (extname) {
     return cb(null, true);
   }
   cb(new Error('Only .xlsx, .xls, .csv, and .json files are allowed'));

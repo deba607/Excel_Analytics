@@ -4,7 +4,6 @@ const ExcelJS = require('exceljs');
 const { parse } = require('csv-parse/sync');
 const { createObjectCsvStringifier } = require('csv-writer');
 const Analysis = require('../models/Analysis');
-//const ErrorResponse = require('../utils/errorResponse');
 
 // Constants
 const SUPPORTED_FORMATS = ['.xlsx', '.xls', '.csv', '.json'];
@@ -353,7 +352,7 @@ exports.getAnalysis = async (req, res, next) => {
   try {
     const { type = 'overview', dateRange = '7d', fileId, fetchOnly, generateNew } = req.query;
     
-    console.log('Analysis request:', { type, fileId, fetchOnly, generateNew, userEmail: req.user?.email });
+
     
     if (!fileId) {
       return res.status(400).json({
@@ -367,18 +366,14 @@ exports.getAnalysis = async (req, res, next) => {
     const file = await File.findById(fileId);
     
     if (!file) {
-      console.log(`File not found: ${fileId}`);
       return res.status(404).json({
         success: false,
         message: 'File not found'
       });
     }
 
-    console.log(`Found file: ${file.originalName}, userEmail: ${file.userEmail}, requestUser: ${req.user?.email}`);
-
     // Check if user has permission to access this file
     if (file.userEmail && file.userEmail !== req.user?.email) {
-      console.log(`Unauthorized access attempt: file user ${file.userEmail}, request user ${req.user?.email}`);
       return res.status(403).json({
         success: false,
         message: 'Not authorized to access this file'
