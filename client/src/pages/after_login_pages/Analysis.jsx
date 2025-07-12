@@ -161,8 +161,8 @@ const Analysis = () => {
         const file = response.data.data.find(f => f._id === selectedFile);
         if (file && file.columns && Array.isArray(file.columns) && file.columns.length > 0) {
           setFileColumns(file.columns);
-          if (!xAxis) setXAxis(file.columns[1]);
-          if (!yAxis && file.columns.length > 2) setYAxis(file.columns[2]);
+          if (!xAxis) setXAxis(file.columns[0]);
+          if (!yAxis && file.columns.length > 1) setYAxis(file.columns[1]);
         } else {
           setFileColumns([]);
         }
