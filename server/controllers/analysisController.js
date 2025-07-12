@@ -2,757 +2,533 @@ const fs = require('fs').promises;
 const path = require('path');
 const ExcelJS = require('exceljs');
 const { parse } = require('csv-parse/sync');
-const { createObjectCsvStringifier } = require('csv-writer');
 const Analysis = require('../models/Analysis');
+const File = require('../models/File');
+const { ChartJSNodeCanvas } = require('chartjs-node-canvas');
+const PDFDocument = require('pdfkit');
 
 // Constants
+const UPLOADS_DIR = path.join(__dirname, '../uploads');
 const SUPPORTED_FORMATS = ['.xlsx', '.xls', '.csv', '.json'];
-const UPLOADS_DIR = path.join(__dirname, '../../uploads');
-const TEMP_DIR = path.join(__dirname, '../../temp');
-
-// Ensure temp directory exists
-async function ensureTempDir() {
-  try {
-    await fs.mkdir(TEMP_DIR, { recursive: true });
-  } catch (error) {
-    if (error.code !== 'EEXIST') throw error;
-  }
-}
+const OUTPUTS_DIR = path.join(__dirname, '../output');
 
 /**
- * Process Excel file using ExcelJS
+ * Process Excel file
  */
 async function processExcelFile(filePath) {
-  try {
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(filePath);
-    const worksheet = workbook.worksheets[0];
-    const rows = [];
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(filePath);
+  const worksheet = workbook.getWorksheet(1);
+  
+  const data = [];
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return; // Skip header row
     
-    // Get headers from first row
-    const headerRow = worksheet.getRow(1);
-    const headers = headerRow.values
-      .filter(Boolean) // Remove empty cells
-      .map(String);    // Convert all headers to strings
-
-    // Process each row
-    worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return; // Skip header row
-      
-      const rowData = {};
-      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-        const header = headers[colNumber - 1];
-        if (header) {
-          rowData[header] = cell.value;
-        }
-      });
-      rows.push(rowData);
+    const rowData = {};
+    row.eachCell((cell, colNumber) => {
+      const header = worksheet.getRow(1).getCell(colNumber).value;
+      if (header) {
+        rowData[header] = cell.value;
+      }
     });
-
-    return rows;
-  } catch (error) {
-    console.error(`Error processing Excel file ${filePath}:`, error);
-    throw new Error(`Failed to process Excel file: ${error.message}`);
-  }
+    if (Object.keys(rowData).length > 0) {
+      data.push(rowData);
+    }
+  });
+  
+  return data;
 }
 
 /**
- * Process CSV file using csv-parse
+ * Process CSV file
  */
 async function processCsvFile(filePath) {
-  try {
-    const fileContent = await fs.readFile(filePath, 'utf-8');
-    return parse(fileContent, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-      skip_records_with_error: true
-    });
-  } catch (error) {
-    console.error(`Error processing CSV file ${filePath}:`, error);
-    throw new Error(`Failed to process CSV file: ${error.message}`);
-  }
+  const fileContent = await fs.readFile(filePath, 'utf-8');
+  return parse(fileContent, {
+    columns: true,
+    skip_empty_lines: true,
+    trim: true
+  });
 }
 
 /**
  * Process JSON file
  */
 async function processJsonFile(filePath) {
-  try {
-    const content = await fs.readFile(filePath, 'utf-8');
-    const data = JSON.parse(content);
-    return Array.isArray(data) ? data : [data];
-  } catch (error) {
-    console.error(`Error processing JSON file ${filePath}:`, error);
-    throw new Error(`Failed to process JSON file: ${error.message}`);
-  }
+  const fileContent = await fs.readFile(filePath, 'utf-8');
+  const data = JSON.parse(fileContent);
+  return Array.isArray(data) ? data : [data];
 }
 
 /**
- * Process any supported file type
+ * Process file based on extension
  */
 async function processFile(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   
-  console.log(`Processing file: ${filePath}, extension: ${ext}`);
+  switch (ext) {
+    case '.xlsx':
+    case '.xls':
+      return await processExcelFile(filePath);
+    case '.csv':
+      return await processCsvFile(filePath);
+    case '.json':
+      return await processJsonFile(filePath);
+    default:
+      throw new Error(`Unsupported file format: ${ext}`);
+  }
+}
+
+/**
+ * Generate basic statistics from data
+ */
+function generateBasicStats(data) {
+  if (!data || data.length === 0) {
+    return { count: 0, columns: [] };
+  }
+
+  const columns = Object.keys(data[0]);
+  const numericColumns = columns.filter(col => {
+    const sampleValue = data[0][col];
+    return typeof sampleValue === 'number' || !isNaN(Number(sampleValue));
+  });
+
+  const stats = {
+    count: data.length,
+    columns: columns,
+    numericColumns: numericColumns
+  };
+
+  // Calculate basic stats for numeric columns
+  numericColumns.forEach(col => {
+    const values = data.map(row => Number(row[col])).filter(val => !isNaN(val));
+    if (values.length > 0) {
+      stats[col] = {
+        sum: values.reduce((a, b) => a + b, 0),
+        avg: values.reduce((a, b) => a + b, 0) / values.length,
+        min: Math.min(...values),
+        max: Math.max(...values),
+        count: values.length
+      };
+    }
+  });
+
+  return stats;
+}
+
+/**
+ * Generate overview analysis
+ */
+function generateOverviewAnalysis(data) {
+  const stats = generateBasicStats(data);
   
-  try {
-    let result;
-    switch (ext) {
-      case '.xlsx':
-      case '.xls':
-        console.log('Processing Excel file...');
-        result = await processExcelFile(filePath);
-        break;
-      case '.csv':
-        console.log('Processing CSV file...');
-        result = await processCsvFile(filePath);
-        break;
-      case '.json':
-        console.log('Processing JSON file...');
-        result = await processJsonFile(filePath);
-        break;
-      default:
-        throw new Error(`Unsupported file format: ${ext}`);
-    }
-    
-    console.log(`File processing complete. Rows: ${result?.length || 0}`);
-    if (result && result.length > 0) {
-      console.log('Sample row:', result[0]);
-    }
-    
-    return result;
-  } catch (error) {
-    console.error(`Error processing file ${filePath}:`, error);
-    throw error;
-  }
-}
-
-/**
- * Aggregate data for analysis
- */
-function aggregateData(rows) {
-  if (!rows || !rows.length) {
-    return { totalRows: 0, numericColumns: [], stats: {} };
+  if (stats.count === 0) {
+    return { success: false, message: 'No data found' };
   }
 
-  // Find all numeric columns
-  const numericColumns = Object.keys(rows[0] || {}).filter(key => 
-    rows.some(row => !isNaN(parseFloat(row[key])))
-  );
-
-  // Calculate statistics for each numeric column
-  const stats = numericColumns.reduce((acc, col) => {
-    const values = rows
-      .map(row => parseFloat(row[col]))
-      .filter(v => !isNaN(v));
-
-    if (values.length === 0) return acc;
-
-    const sum = values.reduce((a, b) => a + b, 0);
-    const avg = sum / values.length;
-    const max = Math.max(...values);
-    const min = Math.min(...values);
-    
-    acc[col] = { sum, avg, max, min, count: values.length };
-    return acc;
-  }, {});
+  // Create chart data for the first numeric column
+  const chartData = stats.numericColumns.length > 0 ? {
+    labels: data.slice(0, 10).map((_, index) => `Row ${index + 1}`),
+    datasets: [{
+      label: stats.numericColumns[0],
+      data: data.slice(0, 10).map(row => Number(row[stats.numericColumns[0]]) || 0),
+      backgroundColor: 'rgba(54, 162, 235, 0.2)',
+      borderColor: 'rgba(54, 162, 235, 1)',
+      borderWidth: 1
+    }]
+  } : null;
 
   return {
-    totalRows: rows.length,
-    numericColumns,
-    stats
-  };
-}
-
-/**
- * Generate chart data for overview
- */
-function generateOverviewChart(rows) {
-  const monthlyData = {};
-  const weeklyData = {};
-  const now = new Date();
-  const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-
-  // Initialize monthly data
-  for (let d = new Date(oneYearAgo); d <= now; d.setMonth(d.getMonth() + 1)) {
-    const month = d.toLocaleString('default', { month: 'short', year: '2-digit' });
-    monthlyData[month] = 0;
-  }
-
-  // Initialize weekly data
-  for (let i = 0; i < 12; i++) {
-    weeklyData[`Week ${i + 1}`] = 0;
-  }
-
-  // Process each row
-  rows.forEach(item => {
-    if (!item.date) return;
-
-    const date = new Date(item.date);
-    if (isNaN(date.getTime())) return;
-
-    const month = date.toLocaleString('default', { month: 'short', year: '2-digit' });
-    const week = Math.ceil(((date - oneYearAgo) / (1000 * 60 * 60 * 24)) / 7);
-    const amount = parseFloat(item.amount || item.price || item.total || 0);
-
-    if (monthlyData[month] !== undefined) {
-      monthlyData[month] += amount;
-    }
-
-    const weekKey = `Week ${Math.min(week, 12)}`;
-    weeklyData[weekKey] = (weeklyData[weekKey] || 0) + amount;
-  });
-
-  return {
-    monthly: {
-      labels: Object.keys(monthlyData),
-      datasets: [{
-        label: 'Monthly Sales',
-        data: Object.values(monthlyData),
-        backgroundColor: 'rgba(59, 130, 246, 0.5)',
-        borderColor: 'rgb(59, 130, 246)',
-        borderWidth: 2
-      }]
+    success: true,
+    summary: {
+      totalRows: stats.count,
+      totalColumns: stats.columns.length,
+      numericColumns: stats.numericColumns.length,
+      sampleData: data.slice(0, 5)
     },
-    weekly: {
-      labels: Object.keys(weeklyData),
-      datasets: [{
-        label: 'Weekly Sales',
-        data: Object.values(weeklyData),
-        backgroundColor: 'rgba(99, 102, 241, 0.5)',
-        borderColor: 'rgb(99, 102, 241)',
-        borderWidth: 2
-      }]
-    }
+    chartData: chartData,
+    stats: stats
   };
-}
-
-/**
- * Generate product analysis
- */
-function generateProductAnalysis(rows) {
-  const products = {};
-
-  rows.forEach(item => {
-    const productName = item.product || item.name || 'Unknown';
-    const price = parseFloat(item.price || item.amount || 0);
-    const quantity = parseInt(item.quantity || 1, 10);
-    const category = item.category || 'Uncategorized';
-
-    if (!products[productName]) {
-      products[productName] = {
-        category,
-        totalSales: 0,
-        totalQuantity: 0,
-        prices: [],
-        orders: 0
-      };
-    }
-
-    products[productName].totalSales += price * quantity;
-    products[productName].totalQuantity += quantity;
-    products[productName].prices.push(price);
-    products[productName].orders += 1;
-  });
-
-  // Calculate additional metrics
-  Object.values(products).forEach(product => {
-    product.avgPrice = product.prices.reduce((a, b) => a + b, 0) / product.prices.length;
-    product.avgOrderValue = product.totalSales / product.orders;
-  });
-
-  return products;
-}
-
-/**
- * Generate customer analysis
- */
-function generateCustomerAnalysis(rows) {
-  const customers = {};
-
-  rows.forEach(item => {
-    const email = item.email || item.customerEmail || 'unknown@example.com';
-    const name = item.customerName || `Customer ${Object.keys(customers).length + 1}`;
-    const amount = parseFloat(item.amount || item.price || 0);
-
-    if (!customers[email]) {
-      customers[email] = {
-        name,
-        orderCount: 0,
-        totalSpent: 0,
-        firstOrder: new Date(),
-        lastOrder: new Date(0),
-        orders: []
-      };
-    }
-
-    const orderDate = item.date ? new Date(item.date) : new Date();
-    customers[email].orderCount += 1;
-    customers[email].totalSpent += amount;
-    customers[email].orders.push({ date: orderDate, amount });
-    
-    if (orderDate < customers[email].firstOrder) {
-      customers[email].firstOrder = orderDate;
-    }
-    if (orderDate > customers[email].lastOrder) {
-      customers[email].lastOrder = orderDate;
-    }
-  });
-
-  return customers;
 }
 
 /**
  * Generate sales analysis
  */
-function generateSalesAnalysis(rows) {
-  const salesByStatus = {
-    'Completed': 0,
-    'Pending': 0,
-    'Cancelled': 0
-  };
+function generateSalesAnalysis(data) {
+  const stats = generateBasicStats(data);
+  
+  // Look for common sales-related columns
+  const salesColumns = stats.columns.filter(col => 
+    col.toLowerCase().includes('sales') || 
+    col.toLowerCase().includes('amount') || 
+    col.toLowerCase().includes('revenue') ||
+    col.toLowerCase().includes('price')
+  );
 
-  const salesByCategory = {};
-  const salesByDate = {};
+  if (salesColumns.length === 0) {
+    return { success: false, message: 'No sales-related columns found' };
+  }
 
-  rows.forEach(item => {
-    const status = item.status || 'Completed';
-    const category = item.category || 'Uncategorized';
-    const date = item.date ? new Date(item.date).toISOString().split('T')[0] : 'Unknown Date';
-    const amount = parseFloat(item.amount || item.price || 0);
-
-    // Sales by status
-    salesByStatus[status] = (salesByStatus[status] || 0) + amount;
-
-    // Sales by category
-    if (!salesByCategory[category]) {
-      salesByCategory[category] = 0;
-    }
-    salesByCategory[category] += amount;
-
-    // Sales by date
-    if (!salesByDate[date]) {
-      salesByDate[date] = 0;
-    }
-    salesByDate[date] += amount;
+  const salesData = salesColumns.map(col => {
+    const values = data.map(row => Number(row[col])).filter(val => !isNaN(val));
+    return {
+      column: col,
+      total: values.reduce((a, b) => a + b, 0),
+      average: values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0,
+      count: values.length
+    };
   });
 
   return {
-    salesByStatus,
-    salesByCategory,
-    salesByDate
+    success: true,
+    salesData: salesData,
+    summary: {
+      totalSales: salesData.reduce((sum, item) => sum + item.total, 0),
+      averageSale: salesData.reduce((sum, item) => sum + item.average, 0) / salesData.length,
+      totalTransactions: salesData.reduce((sum, item) => sum + item.count, 0)
+    }
   };
 }
 
 /**
- * Main analysis controller
+ * Generate products analysis
  */
-exports.getAnalysis = async (req, res, next) => {
-  try {
-    const { type = 'overview', dateRange = '7d', fileId, fetchOnly, generateNew } = req.query;
-    
+function generateProductsAnalysis(data) {
+  const stats = generateBasicStats(data);
+  
+  // Look for product-related columns
+  const productColumns = stats.columns.filter(col => 
+    col.toLowerCase().includes('product') || 
+    col.toLowerCase().includes('item') || 
+    col.toLowerCase().includes('name')
+  );
 
+  if (productColumns.length === 0) {
+    return { success: false, message: 'No product-related columns found' };
+  }
+
+  // Group by product and calculate stats
+  const productStats = {};
+  data.forEach(row => {
+    const productName = row[productColumns[0]] || 'Unknown';
+    if (!productStats[productName]) {
+      productStats[productName] = { count: 0, sales: 0 };
+    }
+    productStats[productName].count++;
     
+    // Add sales if available
+    const salesColumns = stats.columns.filter(col => 
+      col.toLowerCase().includes('sales') || 
+      col.toLowerCase().includes('amount')
+    );
+    if (salesColumns.length > 0) {
+      const salesValue = Number(row[salesColumns[0]]) || 0;
+      productStats[productName].sales += salesValue;
+    }
+  });
+
+  const topProducts = Object.entries(productStats)
+    .sort((a, b) => b[1].sales - a[1].sales)
+    .slice(0, 10);
+
+  return {
+    success: true,
+    products: productStats,
+    topProducts: topProducts,
+    summary: {
+      totalProducts: Object.keys(productStats).length,
+      totalSales: Object.values(productStats).reduce((sum, product) => sum + product.sales, 0),
+      averageSales: Object.values(productStats).reduce((sum, product) => sum + product.sales, 0) / Object.keys(productStats).length
+    }
+  };
+}
+
+/**
+ * Helper to ensure output directory exists
+ */
+async function ensureOutputDir() {
+  try {
+    await fs.mkdir(OUTPUTS_DIR, { recursive: true });
+  } catch (err) {
+    // Ignore if already exists
+  }
+}
+
+/**
+ * Helper to save chart image
+ */
+async function saveChartImage(type, chartData, options, filename) {
+  const width = 800;
+  const height = 600;
+  const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height });
+  const buffer = await chartJSNodeCanvas.renderToBuffer({
+    type,
+    data: chartData,
+    options: options || { responsive: false }
+  });
+  const outPath = path.join(OUTPUTS_DIR, filename);
+  await fs.writeFile(outPath, buffer);
+  return outPath;
+}
+
+/**
+ * Helper to generate PDF report
+ */
+async function generatePDFReport(summary, chartImagePaths, filename) {
+  const outPath = path.join(OUTPUTS_DIR, filename);
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument();
+    const stream = fs.createWriteStream(outPath);
+    doc.pipe(stream);
+    doc.fontSize(20).text('Analysis Report', { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(12).text('Summary:', { underline: true });
+    doc.moveDown();
+    Object.entries(summary).forEach(([key, value]) => {
+      doc.text(`${key}: ${JSON.stringify(value)}`);
+    });
+    doc.moveDown();
+    doc.fontSize(12).text('Charts:', { underline: true });
+    chartImagePaths.forEach((imgPath) => {
+      doc.addPage();
+      doc.image(imgPath, { fit: [500, 400], align: 'center' });
+      doc.moveDown();
+      doc.text(imgPath, { align: 'center', fontSize: 8 });
+    });
+    doc.end();
+    stream.on('finish', () => resolve(outPath));
+    stream.on('error', reject);
+  });
+}
+
+/**
+ * Main analysis controller - Direct file processing
+ */
+exports.getAnalysis = async (req, res) => {
+  try {
+    const { fileId, type = 'overview', chartType = 'bar', xAxis, yAxis, options } = req.query;
+    const userEmail = req.user?.email;
+
+    console.log('[Analysis] Request:', { fileId, type, chartType, xAxis, yAxis, options, userEmail });
+
+    // Validate input
     if (!fileId) {
       return res.status(400).json({
         success: false,
-        message: 'File ID is required'
+        message: 'File ID is required',
+        errorType: 'missing_fileId'
       });
     }
 
-    // 1. Get the specific file
-    const File = require('../models/File');
-    const file = await File.findById(fileId);
-    
-    if (!file) {
-      return res.status(404).json({
+    if (!userEmail) {
+      return res.status(401).json({
         success: false,
-        message: 'File not found'
+        message: 'Authentication required',
+        errorType: 'not_authenticated'
       });
     }
 
-    // Check if user has permission to access this file
-    if (file.userEmail && file.userEmail !== req.user?.email) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to access this file'
-      });
+    // Try to get file from database first
+    let file = null;
+    try {
+      file = await File.findById(fileId);
+    } catch (error) {
+      console.log('[Analysis] File not found in database, checking uploads directory');
     }
 
-    // 2. Check if analysis already exists in database
-    const existingAnalysis = await Analysis.findOne({
-      fileId: fileId,
-      type: type,
-      userEmail: req.user?.email
-    }).sort({ createdAt: -1 });
+    let filePath;
+    let fileName = 'Unknown';
 
-    console.log(`Existing analysis check: ${existingAnalysis ? 'Found' : 'Not found'}`);
+    // List all files in uploads directory for debugging
+    try {
+      const filesInUploads = await fs.readdir(UPLOADS_DIR);
+      console.log('[Analysis] Files in uploads directory:', filesInUploads);
+    } catch (err) {
+      console.error('[Analysis] Could not read uploads directory:', err);
+    }
 
-    // If fetchOnly is true, only return existing analysis
-    if (fetchOnly === 'true') {
-      if (!existingAnalysis) {
-        return res.status(200).json({
-          success: true,
-          message: 'No existing analysis found',
-          data: null
+    if (file) {
+      // File exists in database
+      filePath = path.join(UPLOADS_DIR, file.filename);
+      fileName = file.originalName;
+      console.log('[Analysis] Using filename from DB:', file.filename);
+      // Double-check if file exists on disk
+      try {
+        await fs.access(filePath);
+        console.log('[Analysis] File found on disk (from DB):', filePath);
+      } catch (error) {
+        console.error('[Analysis] File listed in DB but not found on disk:', filePath);
+        return res.status(404).json({
+          success: false,
+          message: 'File listed in database but not found on disk',
+          errorType: 'file_not_on_disk'
         });
       }
-      
-      if (!existingAnalysis.hasData) {
-        return res.status(200).json({
-          success: true,
-          message: 'No data found for this analysis',
-          data: null
-        });
-      }
-
-      console.log(`Returning existing analysis for file ${file.originalName}, type: ${type}`);
-      return res.status(200).json({
-        success: true,
-        data: existingAnalysis.data
-      });
-    }
-
-    // If generateNew is true or no existing analysis, generate new analysis
-    if (generateNew === 'true' || !existingAnalysis) {
-      console.log(`Generating new analysis for file ${file.originalName}, type: ${type}`);
     } else {
-      console.log(`Found existing analysis for file ${file.originalName}, type: ${type}`);
-      
-      if (!existingAnalysis.hasData) {
-        return res.status(200).json({
-          success: true,
-          message: 'No data found for this analysis',
-          data: null
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        data: existingAnalysis.data
-      });
-    }
-
-    const filePath = path.join(UPLOADS_DIR, file.filename);
-    console.log(`Processing file: ${filePath}`);
-    
-    // Check if file exists on disk
-    try {
-      await fs.access(filePath);
-      console.log(`File exists on disk: ${filePath}`);
-    } catch (error) {
-      console.error(`File not found on disk: ${filePath}`, error);
-      return res.status(404).json({
-        success: false,
-        message: 'File not found on disk'
-      });
-    }
-
-    // 2. Process the specific file
-    let allData;
-    try {
-      console.log(`Processing file: ${filePath}`);
-      allData = await processFile(filePath);
-      console.log(`Processed ${allData?.length || 0} rows from file`);
-    } catch (error) {
-      console.error(`Error processing file ${filePath}:`, error);
-      return res.status(400).json({
-        success: false,
-        message: `Failed to process file: ${error.message}`
-      });
-    }
-
-    if (!allData || allData.length === 0) {
-      console.log(`No valid data found in file: ${file.originalName}`);
-      return res.status(400).json({
-        success: false,
-        message: 'No valid data found in file'
-      });
-    }
-
-    console.log(`Processing ${allData.length} rows from file ${file.originalName}`);
-
-    // 3. Generate analysis based on type
-    let analysisData;
-    let hasValidData = false;
-
-    try {
-      switch (type) {
-        case 'overview': {
-          console.log('Generating overview analysis...');
-          const stats = aggregateData(allData);
-          const charts = generateOverviewChart(allData);
-          
-          console.log('Overview stats:', stats);
-          console.log('Overview charts:', charts);
-          
-          // Check if we have valid data
-          hasValidData = allData.length > 0 && stats.numericColumns.length > 0;
-          
-          if (hasValidData) {
-            analysisData = {
-              summary: {
-                totalSales: stats.stats.amount?.sum || 0,
-                totalItems: allData.length,
-                avgValue: stats.stats.amount?.avg || 0,
-                dataPoints: allData.length
-              },
-              chartData: charts.monthly, // Use monthly chart for overview
-              totalSales: stats.stats.amount?.sum || 0,
-              totalItems: allData.length,
-              avgValue: stats.stats.amount?.avg || 0,
-              dataPoints: allData.length
-            };
-          }
-          break;
-        }
-
-        case 'products': {
-          console.log('Generating products analysis...');
-          const products = generateProductAnalysis(allData);
-          const topProducts = Object.entries(products)
-            .sort((a, b) => b[1].totalSales - a[1].totalSales)
-            .slice(0, 10);
-
-          console.log('Products analysis:', { totalProducts: Object.keys(products).length, topProducts: topProducts.length });
-
-          // Check if we have valid product data
-          hasValidData = Object.keys(products).length > 0;
-
-          if (hasValidData) {
-            analysisData = {
-              summary: {
-                totalProducts: Object.keys(products).length,
-                totalRevenue: Object.values(products).reduce((sum, p) => sum + p.totalSales, 0),
-                avgPrice: Object.values(products).reduce((sum, p) => sum + p.avgPrice, 0) / Object.keys(products).length
-              },
-              chartData: {
-                labels: topProducts.map(([name]) => name),
-                datasets: [{
-                  label: 'Sales by Product',
-                  data: topProducts.map(([_, data]) => data.totalSales),
-                  backgroundColor: topProducts.map((_, i) => 
-                    `hsl(${(i * 360 / topProducts.length)}, 70%, 60%)`
-                  ),
-                  borderWidth: 1
-                }]
-              },
-              tableData: topProducts.map(([name, data]) => ({
-                product: name,
-                sales: data.totalSales,
-                percentage: (data.totalSales / Object.values(products).reduce((sum, p) => sum + p.totalSales, 0)) * 100
-              }))
-            };
-          }
-          break;
-        }
-
-        case 'sales': {
-          console.log('Generating sales analysis...');
-          const sales = generateSalesAnalysis(allData);
-          const recentSales = allData
-            .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
-            .slice(0, 10);
-
-          console.log('Sales analysis:', { salesByStatus: sales.salesByStatus, recentSales: recentSales.length });
-
-          // Check if we have valid sales data
-          hasValidData = allData.length > 0 && Object.keys(sales.salesByStatus).length > 0;
-
-          if (hasValidData) {
-            analysisData = {
-              summary: {
-                totalSales: Object.values(sales.salesByStatus).reduce((a, b) => a + b, 0),
-                completedSales: sales.salesByStatus.Completed || 0,
-                pendingSales: sales.salesByStatus.Pending || 0,
-                cancelledSales: sales.salesByStatus.Cancelled || 0
-              },
-              chartData: sales.weekly || {
-                labels: ['No Data'],
-                datasets: [{
-                  label: 'Sales Trend',
-                  data: [0],
-                  backgroundColor: 'rgba(99, 102, 241, 0.5)',
-                  borderColor: 'rgb(99, 102, 241)',
-                  borderWidth: 2
-                }]
-              },
-              tableData: recentSales.map(sale => ({
-                id: sale.id || Math.random().toString(36).substr(2, 9),
-                date: sale.date ? new Date(sale.date).toISOString().split('T')[0] : 'N/A',
-                product: sale.product || 'Unknown',
-                amount: parseFloat(sale.amount || sale.price || 0).toFixed(2),
-                status: sale.status || 'Completed',
-                customer: sale.customerName || 'Unknown'
-              }))
-            };
-          }
-          break;
-        }
-
-        default:
-          return res.status(400).json({
+      // File not in database, check uploads directory
+      console.log('[Analysis] Checking uploads directory for fileId:', fileId);
+      try {
+        const files = await fs.readdir(UPLOADS_DIR);
+        // Look for files that might match the fileId or contain it
+        const matchingFile = files.find(f => f.includes(fileId) || f.startsWith(fileId));
+        if (matchingFile) {
+          filePath = path.join(UPLOADS_DIR, matchingFile);
+          fileName = matchingFile;
+          console.log('[Analysis] Found file in uploads by fileId:', matchingFile);
+        } else {
+          console.error('[Analysis] No file found in uploads matching fileId:', fileId);
+          return res.status(404).json({
             success: false,
-            message: 'Invalid analysis type'
+            message: 'File not found in database or uploads directory',
+            errorType: 'file_not_found'
           });
-      }
-    } catch (analysisError) {
-      console.error('Error generating analysis:', analysisError);
-      return res.status(500).json({
-        success: false,
-        message: `Error generating ${type} analysis: ${analysisError.message}`
-      });
-    }
-
-    console.log(`Analysis generation complete. hasValidData: ${hasValidData}, analysisData: ${analysisData ? 'Generated' : 'None'}`);
-
-    // 4. Save analysis to database
-    try {
-      const analysisRecord = {
-        user: req.user?.id || null,
-        userEmail: req.user?.email || null,
-        fileId: fileId,
-        fileName: file.originalName,
-        type,
-        filters: { dateRange },
-        data: analysisData || null,
-        hasData: hasValidData,
-        createdAt: new Date()
-      };
-
-      await Analysis.create(analysisRecord);
-      console.log(`Analysis saved to database for file ${file.originalName}, type: ${type}, hasData: ${hasValidData}`);
-    } catch (error) {
-      console.error('Error saving analysis to database:', error);
-      // Continue even if saving to DB fails
-    }
-
-    // 5. Return the analysis or no data message
-    if (!hasValidData) {
-      console.log('No valid data found for analysis');
-      return res.status(200).json({
-        success: true,
-        message: 'No data found for this analysis',
-        data: null
-      });
-    }
-
-    console.log('Returning successful analysis');
-    res.status(200).json({
-      success: true,
-      data: analysisData
-    });
-
-  } catch (error) {
-    console.error('Analysis error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error generating analysis'
-    });
-  }
-};
-
-/**
- * Export analysis data
- */
-exports.exportAnalysis = async (req, res, next) => {
-  try {
-    const { type = 'overview', format = 'csv' } = req.query;
-    
-    // Ensure temp directory exists
-    await ensureTempDir();
-    
-    // Get analysis data
-    const response = await exports.getAnalysis(req, res, () => {});
-    if (!response) return;
-
-    const { data } = response;
-    const fileName = `analysis-${type}-${new Date().toISOString().split('T')[0]}.${format}`;
-    const filePath = path.join(TEMP_DIR, fileName);
-
-    if (format === 'csv') {
-      // Convert data to CSV
-      let records = [];
-      
-      if (type === 'products' && data.tableData) {
-        records = data.tableData;
-      } else if (type === 'customers' && data.tableData) {
-        records = data.tableData;
-      } else if (type === 'sales' && data.tableData) {
-        records = data.tableData;
-      } else {
-        // For overview or other types, flatten the data
-        records = [data.summary || data];
-      }
-
-      const csvStringifier = createObjectCsvStringifier({
-        header: Object.keys(records[0] || {}).map(key => ({ id: key, title: key }))
-      });
-
-      const header = csvStringifier.getHeaderString();
-      const rows = csvStringifier.stringifyRecords(records);
-      const csvContent = header + rows;
-
-      await fs.writeFile(filePath, csvContent, 'utf8');
-
-    } else if (format === 'xlsx') {
-      // Convert data to Excel
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('Analysis');
-
-      let rows = [];
-      if (data.tableData) {
-        // For tabular data
-        if (data.tableData.length > 0) {
-          // Add headers
-          worksheet.columns = Object.keys(data.tableData[0]).map(key => ({
-            header: key,
-            key: key,
-            width: 15
-          }));
-          // Add rows
-          worksheet.addRows(data.tableData);
         }
-      } else {
-        // For summary data
-        const summaryRows = Object.entries(data.summary || data).map(([key, value]) => ({
-          Metric: key,
-          Value: value
-        }));
-        worksheet.columns = [
-          { header: 'Metric', key: 'Metric', width: 30 },
-          { header: 'Value', key: 'Value', width: 20 }
-        ];
-        worksheet.addRows(summaryRows);
+      } catch (error) {
+        console.error('[Analysis] Error reading uploads directory:', error);
+        return res.status(404).json({
+          success: false,
+          message: 'Uploads directory not accessible',
+          errorType: 'uploads_not_accessible'
+        });
       }
-
-      // Style header row
-      worksheet.getRow(1).font = { bold: true };
-      worksheet.getRow(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFD3D3D3' }
-      };
-
-      await workbook.xlsx.writeFile(filePath);
-    } else {
-      // Default to JSON
-      await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
     }
 
-    // Send the file
-    res.download(filePath, fileName, (err) => {
-      // Clean up the temp file after sending
-      fs.unlink(filePath).catch(console.error);
-      if (err) next(err);
-    });
+    // Process file
+    let data;
+    try {
+      console.log('[Analysis] Processing file:', fileName);
+      data = await processFile(filePath);
+      console.log('[Analysis] Processed file:', { rows: data.length, file: fileName });
+    } catch (error) {
+      console.error('[Analysis] File processing error:', error);
+      return res.status(400).json({
+        success: false,
+        message: `Error processing file: ${error.message}`,
+        errorType: 'file_processing_error'
+      });
+    }
 
+    if (!data || data.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No data found in file',
+        errorType: 'no_data'
+      });
+    }
+
+    // Generate analysis based on type
+    let analysisResult;
+    switch (type) {
+      case 'overview':
+        analysisResult = generateOverviewAnalysis(data);
+        break;
+      case 'sales':
+        analysisResult = generateSalesAnalysis(data);
+        break;
+      case 'products':
+        analysisResult = generateProductsAnalysis(data);
+        break;
+      default:
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid analysis type',
+          errorType: 'invalid_type'
+        });
+    }
+
+    if (!analysisResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: analysisResult.message,
+        errorType: 'analysis_failed'
+      });
+    }
+
+    await ensureOutputDir();
+
+    // --- Chart Generation Section ---
+    // Determine chart data based on xAxis and yAxis
+    let chartData = analysisResult.chartData;
+    if (xAxis && yAxis && data.length > 0) {
+      // Build chartData dynamically from selected axes
+      const labels = data.map(row => row[xAxis]);
+      const values = data.map(row => Number(row[yAxis]));
+      chartData = {
+        labels,
+        datasets: [{
+          label: yAxis,
+          data: values,
+          backgroundColor: 'rgba(54, 162, 235, 0.2)',
+          borderColor: 'rgba(54, 162, 235, 1)',
+          borderWidth: 1
+        }]
+      };
+    }
+
+    // Chart options (grid, legend, values)
+    let chartOptions = { responsive: false };
+    if (options) {
+      try {
+        const parsed = typeof options === 'string' ? JSON.parse(options) : options;
+        chartOptions = { ...chartOptions, ...parsed };
+      } catch (e) { /* ignore */ }
+    }
+
+    // Only generate the requested chart type
+    const chartImages = [];
+    let chartImagePath = null;
+    if (chartData) {
+      try {
+        const filename = `chart_${chartType}_${Date.now()}.png`;
+        chartImagePath = await saveChartImage(chartType, chartData, chartOptions, filename);
+        chartImages.push(chartImagePath);
+      } catch (err) {
+        console.error(`[Analysis] Failed to generate ${chartType} chart:`, err);
+      }
+    }
+
+    // Generate PDF report
+    let reportPath = null;
+    try {
+      reportPath = await generatePDFReport(analysisResult.summary || {}, chartImages, `report_${Date.now()}.pdf`);
+    } catch (err) {
+      console.error('[Analysis] Failed to generate PDF report:', err);
+    }
+
+    // Save analysis to database if file exists in DB
+    if (file) {
+      try {
+        await Analysis.create({
+          userEmail: userEmail,
+          fileId: file._id,
+          fileName: file.originalName,
+          type: type,
+          data: analysisResult,
+          hasData: true,
+          chartImages,
+          reportPath
+        });
+        console.log('[Analysis] Saved to database with chart images and report');
+      } catch (error) {
+        console.log('[Analysis] Error saving to database:', error);
+        // Continue even if saving fails
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...analysisResult,
+        chartImages,
+        reportPath
+      }
+    });
   } catch (error) {
-    console.error('Export error:', error);
-    res.status(500).json({
+    console.error('[Analysis] Unexpected error:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Error exporting analysis'
+      message: 'Internal server error',
+      errorType: 'server_error'
     });
   }
 };
@@ -760,45 +536,63 @@ exports.exportAnalysis = async (req, res, next) => {
 /**
  * Get analysis history
  */
-exports.getAnalysisHistory = async (req, res, next) => {
+exports.getAnalysisHistory = async (req, res) => {
   try {
-    const { type, limit = 10, page = 1 } = req.query;
-    const query = { userEmail: req.user?.email };
+    const userEmail = req.user?.email;
+    const { fileId } = req.query;
 
-    if (type) {
-      query.type = type;
+    if (!userEmail) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const query = { userEmail };
+    if (fileId) {
+      query.fileId = fileId;
     }
 
     const analyses = await Analysis.find(query)
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit))
-      .select('type fileName fileId hasData createdAt');
+      .limit(50);
 
-    const total = await Analysis.countDocuments(query);
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      count: analyses.length,
-      total,
       data: analyses
     });
+
   } catch (error) {
-    console.error('Get history error:', error);
-    res.status(500).json({
+    console.error('[Analysis History] Error:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Error fetching analysis history'
+      message: 'Internal server error'
     });
   }
 };
 
 /**
- * Get specific analysis by ID
+ * Export analysis data
  */
-exports.getAnalysisById = async (req, res, next) => {
+exports.exportAnalysis = async (req, res) => {
   try {
-    const analysis = await Analysis.findById(req.params.id);
-    
+    const { fileId, type, format = 'json' } = req.query;
+    const userEmail = req.user?.email;
+
+    if (!userEmail) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    // Get the latest analysis
+    const analysis = await Analysis.findOne({
+      fileId,
+      type,
+      userEmail
+    }).sort({ createdAt: -1 });
+
     if (!analysis) {
       return res.status(404).json({
         success: false,
@@ -806,227 +600,64 @@ exports.getAnalysisById = async (req, res, next) => {
       });
     }
 
-    // Check if user has permission to view this analysis
-    if (analysis.user && analysis.user.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to view this analysis'
-      });
+    let exportData;
+    let contentType;
+    let filename;
+
+    switch (format) {
+      case 'json':
+        exportData = JSON.stringify(analysis.data, null, 2);
+        contentType = 'application/json';
+        filename = `analysis_${type}_${Date.now()}.json`;
+        break;
+      case 'csv':
+        // Convert to CSV format
+        const csvData = convertToCSV(analysis.data);
+        exportData = csvData;
+        contentType = 'text/csv';
+        filename = `analysis_${type}_${Date.now()}.csv`;
+        break;
+      default:
+        return res.status(400).json({
+          success: false,
+          message: 'Unsupported export format'
+        });
     }
 
-    res.status(200).json({
-      success: true,
-      data: analysis
-    });
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(exportData);
+
   } catch (error) {
-    console.error('Get analysis error:', error);
-    res.status(500).json({
+    console.error('[Export Analysis] Error:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Error fetching analysis'
+      message: 'Internal server error'
     });
   }
 };
 
 /**
- * Delete analysis
+ * Helper function to convert data to CSV
  */
-exports.deleteAnalysis = async (req, res, next) => {
-  try {
-    const analysis = await Analysis.findById(req.params.id);
-    
-    if (!analysis) {
-      return res.status(404).json({
-        success: false,
-        message: 'Analysis not found'
-      });
-    }
-
-    // Check if user has permission to delete this analysis
-    if (analysis.user && analysis.user.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to delete this analysis'
-      });
-    }
-
-    await analysis.remove();
-
-    res.status(200).json({
-      success: true,
-      data: {}
-    });
-  } catch (error) {
-    console.error('Delete analysis error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error deleting analysis'
-    });
+function convertToCSV(data) {
+  // Simple CSV conversion - can be enhanced based on data structure
+  if (!data || typeof data !== 'object') {
+    return '';
   }
-};
 
-// Generate analysis with charts
-const ChartGenerator = require('../utils/chartGenerator');
-const File = require('../models/File');
-
-exports.generateAnalysis = async (req, res, next) => {
-    try {
-        const { fileId, chartType = 'column' } = req.query;
-
-        console.log('Generate analysis request:', { fileId, chartType, userEmail: req.user?.email });
-
-        if (!fileId) {
-            return res.status(400).json({
-                success: false,
-                message: 'File ID is required'
-            });
-        }
-
-        // Get the file
-        const file = await File.findById(fileId);
-        if (!file) {
-            return res.status(404).json({
-                success: false,
-                message: 'File not found'
-            });
-        }
-
-        // Check if user has permission to access this file
-        if (file.userEmail && file.userEmail !== req.user?.email) {
-            return res.status(403).json({
-                success: false,
-                message: 'Not authorized to access this file'
-            });
-        }
-
-        const inputPath = path.join(__dirname, '..', 'uploads', file.filename);
-        const outputPath = path.join(__dirname, '..', 'outputs', `analysis_${Date.now()}.xlsx`);
-
-        console.log(`Processing file: ${inputPath}`);
-        console.log(`Output path: ${outputPath}`);
-
-        // Check if input file exists
-        try {
-            await fs.access(inputPath);
-        } catch (error) {
-            return res.status(404).json({
-                success: false,
-                message: 'Input file not found on disk'
-            });
-        }
-
-        // Process the file to get data
-        let fileData;
-        try {
-            fileData = await processFile(inputPath);
-            console.log(`Processed ${fileData?.length || 0} rows from file`);
-        } catch (error) {
-            console.error('Error processing file:', error);
-            return res.status(400).json({
-                success: false,
-                message: `Failed to process file: ${error.message}`
-            });
-        }
-
-        if (!fileData || fileData.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'No valid data found in file'
-            });
-        }
-
-        // Create workbook and worksheet
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Analysis');
-        
-        // Add headers
-        if (fileData.length > 0) {
-            const headers = Object.keys(fileData[0]);
-            worksheet.addRow(headers);
-            
-            // Add data rows
-            fileData.forEach(row => {
-                const rowData = headers.map(header => row[header] || '');
-                worksheet.addRow(rowData);
-            });
-        }
-
-        // Create chart generator
-        const chartGen = new ChartGenerator(worksheet);
-
-        // Generate charts based on chartType
-        try {
-            switch (chartType.toLowerCase()) {
-                case 'column':
-                    if (fileData.length > 0) {
-                        const firstRow = fileData[0];
-                        const numericColumns = Object.keys(firstRow).filter(key => 
-                            !isNaN(parseFloat(firstRow[key]))
-                        );
-                        
-                        if (numericColumns.length > 0) {
-                            const categoryCol = Object.keys(firstRow)[0];
-                            const valueCol = numericColumns[0];
-                            
-                            chartGen.createClusteredColumn(
-                                'Data Analysis',
-                                `A2:A${Math.min(fileData.length + 1, 10)}`,
-                                `B2:B${Math.min(fileData.length + 1, 10)}`,
-                                'D2'
-                            );
-                        }
-                    }
-                    break;
-                    
-                case 'pie':
-                    if (fileData.length > 0) {
-                        const firstRow = fileData[0];
-                        const numericColumns = Object.keys(firstRow).filter(key => 
-                            !isNaN(parseFloat(firstRow[key]))
-                        );
-                        
-                        if (numericColumns.length > 0) {
-                            chartGen.createPie(
-                                'Data Distribution',
-                                `A2:A${Math.min(fileData.length + 1, 5)}`,
-                                `B2:B${Math.min(fileData.length + 1, 5)}`,
-                                'D2'
-                            );
-                        }
-                    }
-                    break;
-                    
-                default:
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Unsupported chart type'
-                    });
-            }
-        } catch (chartError) {
-            console.error('Error creating chart:', chartError);
-            return res.status(500).json({
-                success: false,
-                message: `Error creating chart: ${chartError.message}`
-            });
-        }
-
-        // Save the workbook
-        await workbook.xlsx.writeFile(outputPath);
-        console.log(`Analysis file saved: ${outputPath}`);
-
-        res.status(200).json({
-            success: true,
-            message: 'Analysis generated successfully',
-            downloadUrl: `/outputs/${path.basename(outputPath)}`,
-            fileName: path.basename(outputPath)
-        });
-
-    } catch (error) {
-        console.error('Generate analysis error:', error);
-        res.status(500).json({
-            success: false,
-            message: `Error generating analysis: ${error.message}`
-        });
-    }
-};
-
-module.exports = exports;
+  const rows = [];
+  
+  // Add headers
+  const headers = Object.keys(data);
+  rows.push(headers.join(','));
+  
+  // Add data row
+  const values = headers.map(header => {
+    const value = data[header];
+    return typeof value === 'string' ? `"${value}"` : value;
+  });
+  rows.push(values.join(','));
+  
+  return rows.join('\n');
+}

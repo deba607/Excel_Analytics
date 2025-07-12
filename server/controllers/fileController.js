@@ -36,12 +36,45 @@ exports.uploadFiles = async (req, res) => {
         });
 
         if (existingFile) {
-          duplicateFiles.push({
-            filename: file.originalname,
-            message: 'File already exists',
-            existingFileId: existingFile._id
-          });
-          continue; // Skip to next file
+          // Check if file exists on disk
+          const fsPath = require('path').join(__dirname, '../../uploads', existingFile.filename);
+          const fsPromises = require('fs').promises;
+          let fileOnDisk = false;
+          try {
+            await fsPromises.access(fsPath);
+            fileOnDisk = true;
+          } catch {
+            fileOnDisk = false;
+          }
+
+          if (fileOnDisk) {
+            // File exists in both DB and disk, return as success
+            uploadedFiles.push({
+              id: existingFile._id,
+              filename: existingFile.filename,
+              originalName: existingFile.originalName,
+              size: existingFile.size,
+              uploadedAt: existingFile.createdAt,
+              message: 'File already exists, not re-uploaded.'
+            });
+            continue; // Skip to next file
+          } else {
+            // File missing on disk, allow re-upload and update DB
+            existingFile.filename = file.filename;
+            existingFile.path = file.path;
+            existingFile.size = file.size;
+            existingFile.status = 'completed';
+            await existingFile.save();
+            uploadedFiles.push({
+              id: existingFile._id,
+              filename: existingFile.filename,
+              originalName: existingFile.originalName,
+              size: existingFile.size,
+              uploadedAt: existingFile.createdAt,
+              message: 'File was missing on disk, re-uploaded and DB updated.'
+            });
+            continue;
+          }
         }
 
         // If file doesn't exist, create new record
@@ -60,7 +93,8 @@ exports.uploadFiles = async (req, res) => {
           filename: newFile.filename,
           originalName: newFile.originalName,
           size: newFile.size,
-          uploadedAt: newFile.createdAt
+          uploadedAt: newFile.createdAt,
+          message: 'File uploaded successfully.'
         });
 
       } catch (fileError) {

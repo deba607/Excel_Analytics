@@ -1,7 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FiBarChart2, FiPieChart, FiTrendingUp, FiDownload, FiRefreshCw, FiFile, FiSearch, FiChevronLeft, FiChevronRight, FiUpload, FiCheckCircle } from 'react-icons/fi';
-import { Bar, Line, Pie } from 'react-chartjs-2';
+import { motion } from 'framer-motion';
+import { 
+  FiBarChart2, 
+  FiPieChart, 
+  FiTrendingUp, 
+  FiDownload, 
+  FiRefreshCw, 
+  FiFile, 
+  FiSearch, 
+  FiChevronLeft, 
+  FiChevronRight, 
+  FiUpload, 
+  FiCheckCircle,
+  FiAlertCircle,
+  FiInfo
+} from 'react-icons/fi';
+import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
 import { Chart, registerables } from 'chart.js';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
@@ -13,6 +27,7 @@ Chart.register(...registerables);
 const Analysis = () => {
   const { userEmail, token } = useAuth();
 
+  // API configuration
   const API = axios.create({
     baseURL: 'http://localhost:8000/api',
     headers: {
@@ -25,9 +40,6 @@ const Analysis = () => {
     const currentToken = localStorage.getItem('token') || token;
     if (currentToken && currentToken !== 'null' && currentToken !== 'undefined') {
       config.headers.Authorization = `Bearer ${currentToken}`;
-      console.log('Sending request with token:', currentToken.substring(0, 20) + '...');
-    } else {
-      console.log('No valid token found');
     }
     return config;
   });
@@ -39,7 +51,6 @@ const Analysis = () => {
       console.error('API Error:', error);
       if (error.response?.status === 401) {
         toast.error('Authentication required. Please log in again.');
-        // Redirect to login
         window.location.href = '/login';
       } else if (error.response?.status === 404) {
         toast.error('Resource not found');
@@ -52,11 +63,9 @@ const Analysis = () => {
 
   // State management
   const [activeTab, setActiveTab] = useState('overview');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isFetchingAnalysis, setIsFetchingAnalysis] = useState(false);
-  const [analysisSource, setAnalysisSource] = useState(null); // 'fetched' or 'generated'
   const [userFiles, setUserFiles] = useState([]);
   const [selectedFile, setSelectedFile] = useState('');
   const [analysisData, setAnalysisData] = useState(null);
@@ -71,12 +80,31 @@ const Analysis = () => {
     hasNextPage: false,
     hasPreviousPage: false
   });
-  const [filters, setFilters] = useState({
-    fileType: '',
-    sortBy: '-uploadedAt'
-  });
 
-  // Fetch user's files with pagination and search
+  // Analysis types
+  const analysisTypes = [
+    { id: 'overview', label: 'Overview', icon: <FiBarChart2 />, description: 'Basic data statistics and insights' },
+    { id: 'sales', label: 'Sales', icon: <FiTrendingUp />, description: 'Sales performance and trends' },
+    { id: 'products', label: 'Products', icon: <FiPieChart />, description: 'Product analysis and performance' }
+  ];
+
+  // Chart controls state
+  const chartTypes = [
+    { id: 'line', label: 'Line Chart' },
+    { id: 'bar', label: 'Bar Chart' },
+    { id: 'pie', label: 'Pie Chart' },
+    { id: 'box', label: 'Box Plot' },
+    { id: 'scatter', label: 'Scatter Plot' }
+  ];
+  const [selectedChartType, setSelectedChartType] = useState('line');
+  const [xAxis, setXAxis] = useState('');
+  const [yAxis, setYAxis] = useState('');
+  const [showGrid, setShowGrid] = useState(true);
+  const [showLegend, setShowLegend] = useState(true);
+  const [showValues, setShowValues] = useState(true);
+  const [fileColumns, setFileColumns] = useState([]);
+
+  // Fetch user's files
   const fetchUserFiles = useCallback(async (page = 1, search = '') => {
     try {
       setIsLoadingFiles(true);
@@ -84,11 +112,9 @@ const Analysis = () => {
         page,
         limit: 10,
         ...(search && { search }),
-        ...(filters.fileType && { type: filters.fileType }),
-        sortBy: filters.sortBy
+        sortBy: '-createdAt'
       };
 
-      console.log('Fetching files with params:', params);
       const response = await API.get('/files/getfiles', { params });
       
       if (!response.data.success) {
@@ -110,106 +136,151 @@ const Analysis = () => {
         setSelectedFile(files[0]._id);
       }
       
-      return { files, pagination: paginationData };
     } catch (error) {
-      console.error('Fetch files error details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        url: error.config?.url
-      });
-      toast.error('Failed to load files');
+      console.error('Error fetching files:', error);
+      // Don't show error toast if no files found - this is normal
+      if (error.response?.status !== 404) {
+        toast.error('Failed to load files');
+      }
       setUserFiles([]);
-      throw error;
     } finally {
       setIsLoadingFiles(false);
     }
-  }, [filters.fileType, filters.sortBy, selectedFile]);
+  }, [selectedFile]);
 
-  // Fetch analysis data
-  const fetchAnalysisData = useCallback(async () => {
+  // Fetch columns for selected file
+  const fetchFileColumns = useCallback(async () => {
+    if (!selectedFile) return;
+    try {
+      const token = localStorage.getItem('token') || token;
+      const response = await API.get(`/files/getfiles`, {
+        params: { search: '' },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data && response.data.data) {
+        const file = response.data.data.find(f => f._id === selectedFile);
+        if (file && file.columns && Array.isArray(file.columns) && file.columns.length > 0) {
+          setFileColumns(file.columns);
+          if (!xAxis) setXAxis(file.columns[1]);
+          if (!yAxis && file.columns.length > 2) setYAxis(file.columns[2]);
+        } else {
+          setFileColumns([]);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching file columns:', err);
+      setFileColumns([]);
+    }
+  }, [selectedFile, xAxis, yAxis]);
+
+  // Update fileColumns when file changes or after analysis
+  useEffect(() => {
+    if (analysisData && analysisData.stats && Array.isArray(analysisData.stats.columns) && analysisData.stats.columns.length > 0) {
+      setFileColumns(analysisData.stats.columns);
+      if (!xAxis) setXAxis(analysisData.stats.columns[0]);
+      if (!yAxis && analysisData.stats.columns.length > 1) setYAxis(analysisData.stats.columns[1]);
+    } else {
+      fetchFileColumns();
+    }
+  }, [selectedFile, analysisData, fetchFileColumns]);
+
+  // Generate analysis with chart options
+  const generateAnalysis = useCallback(async () => {
     if (!selectedFile) {
+      toast.error('Please select a file first');
       return;
     }
-
+    if (!xAxis || !yAxis) {
+      toast.error('Please select both X and Y axes');
+      return;
+    }
     try {
-      setIsLoading(true);
-      
+      setIsAnalyzing(true);
       const params = {
         fileId: selectedFile,
         type: activeTab,
-        generateNew: true // Flag to generate new analysis
+        chartType: selectedChartType,
+        xAxis,
+        yAxis,
+        options: JSON.stringify({
+          grid: showGrid,
+          legend: showLegend,
+          values: showValues
+        })
       };
-      
-      console.log('Fetching analysis with params:', params);
       const response = await API.get('/v1/analysis', { params });
-      
       if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to generate analysis');
+        throw new Error(response.data.message || 'Failed to generate analysis');
       }
-      
       const data = response.data.data;
-      
-      if (data === null) {
-        // No data found
+      if (!data || !data.success) {
         setAnalysisData(null);
         setChartData(null);
         setTableData([]);
         setStats([]);
-        setAnalysisSource(null);
-        toast.info('No data found for this analysis');
-      } else {
-        setAnalysisData(data);
-        updateUI(data);
-        setAnalysisSource('generated');
-        toast.success('Analysis completed successfully!');
+        toast.info(data?.message || 'No data found for this analysis');
+        return;
       }
+      setAnalysisData(data);
+      updateUI(data);
+      toast.success('Analysis completed successfully!');
     } catch (error) {
-      console.error('Analysis error details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        url: error.config?.url
-      });
-      toast.error('Failed to generate analysis');
+      console.error('Analysis error:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to generate analysis';
+      toast.error(errorMessage);
       setAnalysisData(null);
       setChartData(null);
       setTableData([]);
       setStats([]);
     } finally {
-      setIsLoading(false);
+      setIsAnalyzing(false);
     }
-  }, [selectedFile, activeTab]);
+  }, [selectedFile, activeTab, selectedChartType, xAxis, yAxis, showGrid, showLegend, showValues]);
 
   // Update UI based on analysis data
   const updateUI = (data) => {
-    if (!data) {
-      return;
+    if (!data) return;
+
+    // Update chart data
+    if (data.chartData) {
+      setChartData(data.chartData);
+    } else {
+      setChartData(null);
     }
 
-    if (activeTab === 'overview') {
-      // Handle overview data
-      const chartData = data.chartData || data.monthly || null;
+    // Update table data
+    if (data.tableData) {
+      setTableData(data.tableData);
+    } else {
+      setTableData([]);
+    }
 
-      setChartData(chartData);
-      setStats([
-        { title: 'Total Sales', value: `$${data.totalSales?.toFixed(2) || data.summary?.totalSales?.toFixed(2) || '0.00'}` },
-        { title: 'Total Items', value: data.totalItems || data.summary?.totalItems || 0 },
-        { title: 'Average Value', value: `$${data.avgValue?.toFixed(2) || data.summary?.avgValue?.toFixed(2) || '0.00'}` },
-        { title: 'Data Points', value: data.dataPoints || data.summary?.dataPoints || 0 }
-      ]);
-    } else if (activeTab === 'sales') {
-      // Handle sales data
-      const chartData = data.chartData || data.weekly || null;
+    // Update stats
+    if (data.summary) {
+      const statsArray = [];
+      
+      if (data.summary.totalRows) {
+        statsArray.push({ title: 'Total Rows', value: data.summary.totalRows });
+      }
+      if (data.summary.totalColumns) {
+        statsArray.push({ title: 'Total Columns', value: data.summary.totalColumns });
+      }
+      if (data.summary.numericColumns) {
+        statsArray.push({ title: 'Numeric Columns', value: data.summary.numericColumns });
+      }
+      if (data.summary.totalSales) {
+        statsArray.push({ title: 'Total Sales', value: `$${data.summary.totalSales.toFixed(2)}` });
+      }
+      if (data.summary.averageSale) {
+        statsArray.push({ title: 'Average Sale', value: `$${data.summary.averageSale.toFixed(2)}` });
+      }
+      if (data.summary.totalProducts) {
+        statsArray.push({ title: 'Total Products', value: data.summary.totalProducts });
+      }
 
-      setChartData(chartData);
-      setTableData(data.tableData || []);
-    } else if (activeTab === 'products') {
-      // Handle products data
-      const chartData = data.chartData || null;
-
-      setChartData(chartData);
-      setTableData(data.tableData || []);
+      setStats(statsArray);
+    } else {
+      setStats([]);
     }
   };
 
@@ -221,73 +292,6 @@ const Analysis = () => {
     setChartData(null);
     setTableData([]);
     setStats([]);
-    setAnalysisSource(null);
-  };
-
-  // Handle analyze button click
-  const handleAnalyze = async () => {
-    if (!selectedFile) {
-      toast.error('Please select a file first');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    try {
-      await fetchAnalysisData();
-    } catch (error) {
-      console.error('Analysis failed:', error);
-      toast.error('Analysis failed. Please try again.');
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  // Handle get analysis button click
-  const handleGetAnalysis = async () => {
-    if (!selectedFile) {
-      toast.error('Please select a file first');
-      return;
-    }
-
-    setIsFetchingAnalysis(true);
-    try {
-      const response = await API.get('/v1/analysis', {
-        params: {
-          fileId: selectedFile,
-          type: activeTab,
-          fetchOnly: true // Flag to only fetch, not generate new analysis
-        }
-      });
-      
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to fetch analysis');
-      }
-      
-      const data = response.data.data;
-      
-      if (data === null) {
-        // No existing analysis found
-        setAnalysisData(null);
-        setChartData(null);
-        setTableData([]);
-        setStats([]);
-        setAnalysisSource(null);
-        toast.info('No existing analysis found. Please run a new analysis.');
-      } else {
-        setAnalysisData(data);
-        updateUI(data);
-        setAnalysisSource('fetched');
-        toast.success('Existing analysis loaded successfully!');
-      }
-    } catch (error) {
-      toast.error('Failed to fetch existing analysis');
-      setAnalysisData(null);
-      setChartData(null);
-      setTableData([]);
-      setStats([]);
-    } finally {
-      setIsFetchingAnalysis(false);
-    }
   };
 
   // Handle tab change
@@ -298,12 +302,38 @@ const Analysis = () => {
     setChartData(null);
     setTableData([]);
     setStats([]);
-    setAnalysisSource(null);
   };
 
-  // Export data
+  // Handle search
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+    fetchUserFiles(1, searchQuery);
+  };
+
+  // Handle pagination
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      setPagination(prev => ({ ...prev, currentPage: newPage }));
+      fetchUserFiles(newPage, searchQuery);
+    }
+  };
+
+  // Format file size
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Export analysis
   const handleExport = async (format) => {
-    if (!selectedFile) return;
+    if (!selectedFile || !analysisData) {
+      toast.error('No analysis data to export');
+      return;
+    }
 
     try {
       const response = await API.get('/v1/analysis/export', {
@@ -318,150 +348,56 @@ const Analysis = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `analysis-${activeTab}-${new Date().toISOString().split('T')[0]}.${format}`);
+      link.setAttribute('download', `analysis_${activeTab}_${new Date().toISOString().split('T')[0]}.${format}`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       toast.success('Export started successfully');
     } catch (error) {
+      console.error('Export failed:', error);
       toast.error('Export failed');
-    }
-  };
-
-  // Check token status
-  const checkTokenStatus = () => {
-    const token = localStorage.getItem('token');
-    const userEmail = localStorage.getItem('userEmail');
-    console.log('Token status:', {
-      hasToken: !!token,
-      tokenLength: token ? token.length : 0,
-      tokenStart: token ? token.substring(0, 20) + '...' : 'none',
-      userEmail,
-      contextToken: token
-    });
-  };
-
-  // Test API connection
-  const testAPIConnection = async () => {
-    try {
-      // Test basic API endpoint
-      const basicResponse = await fetch('http://localhost:8000/api/test');
-      const basicData = await basicResponse.json();
-      console.log('Basic API test:', basicData);
-      
-      // Test auth endpoint
-      const authResponse = await fetch('http://localhost:8000/api/auth-test', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      const authData = await authResponse.json();
-      console.log('Auth test:', authData);
-      
-      // Test analysis public endpoint
-      const analysisResponse = await fetch('http://localhost:8000/api/v1/analysis/public-test');
-      const analysisData = await analysisResponse.json();
-      console.log('Analysis public test:', analysisData);
-      
-      // Test analysis protected endpoint
-      const protectedResponse = await API.get('/v1/analysis/test');
-      const protectedData = await protectedResponse.data;
-      console.log('Analysis protected test:', protectedData);
-      
-      toast.success('All API tests passed!');
-    } catch (error) {
-      console.error('API test failed:', error);
-      toast.error('API connection failed');
     }
   };
 
   // Initial data load
   useEffect(() => {
-    console.log('Analysis component mounted, checking token...');
-    checkTokenStatus();
     fetchUserFiles();
   }, [fetchUserFiles]);
-
-  // Fetch analysis when file or tab changes
-  useEffect(() => {
-    // Only fetch analysis if explicitly triggered by analyze button
-    // This prevents automatic analysis on file/tab change
-  }, [selectedFile, activeTab, fetchAnalysisData]);
-
-  // Handle pagination
-  const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= pagination.totalPages) {
-      setPagination(prev => ({ ...prev, currentPage: newPage }));
-      fetchUserFiles(newPage, searchQuery);
-    }
-  };
-
-  // Handle search
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setPagination(prev => ({ ...prev, currentPage: 1 }));
-    fetchUserFiles(1, searchQuery);
-  };
-
-  // Tabs configuration
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: <FiBarChart2 /> },
-    { id: 'sales', label: 'Sales', icon: <FiTrendingUp /> },
-    { id: 'products', label: 'Products', icon: <FiPieChart /> }
-  ];
-
-  // Format file size
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  // Rest of your component JSX remains the same
-  // ... (keep all your existing JSX code)
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <div className="border-2 border-gray-200 rounded-lg p-6">
-            {/* File selection dropdown */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <label htmlFor="file-select" className="block text-sm font-medium text-gray-700">
-                  Select File
-                </label>
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">Data Analysis</h1>
+            <p className="mt-2 text-gray-600">
+              Analyze your uploaded files and generate insights
+            </p>
+          </div>
+
+          <div className="bg-white shadow-sm rounded-lg">
+            {/* File Selection */}
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-medium text-gray-900">Select File</h2>
                 <div className="flex space-x-2">
-                  <button
-                    onClick={testAPIConnection}
-                    className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  >
-                    Test API
-                  </button>
-                  <button
-                    onClick={checkTokenStatus}
-                    className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  >
-                    Check Token
-                  </button>
                   <button
                     onClick={() => fetchUserFiles()}
                     disabled={isLoadingFiles}
-                    className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                   >
-                    <FiRefreshCw className={`h-4 w-4 mr-1 ${isLoadingFiles ? 'animate-spin' : ''}`} />
+                    <FiRefreshCw className={`h-4 w-4 mr-2 ${isLoadingFiles ? 'animate-spin' : ''}`} />
                     Refresh
                   </button>
                 </div>
               </div>
+
               <div className="flex items-center space-x-4">
                 <select
-                  id="file-select"
                   value={selectedFile}
                   onChange={handleFileSelect}
-                  className="flex-1 mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                  className="flex-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
                 >
                   <option value="">Select a file</option>
                   {userFiles.map((file) => (
@@ -471,24 +407,7 @@ const Analysis = () => {
                   ))}
                 </select>
                 <button
-                  onClick={handleGetAnalysis}
-                  disabled={!selectedFile || isFetchingAnalysis}
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isFetchingAnalysis ? (
-                    <>
-                      <FiRefreshCw className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                      Fetching...
-                    </>
-                  ) : (
-                    <>
-                      <FiDownload className="-ml-1 mr-2 h-4 w-4" />
-                      Get Analysis
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleAnalyze}
+                  onClick={generateAnalysis}
                   disabled={!selectedFile || isAnalyzing}
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -505,43 +424,81 @@ const Analysis = () => {
                   )}
                 </button>
               </div>
+
               {selectedFile && (
                 <p className="mt-2 text-sm text-gray-500">
-                  Selected: {userFiles.find(f => f._id === selectedFile)?.originalName}
+                  Selected: {userFiles.find(f => f._id === selectedFile)?.originalName || selectedFile}
                 </p>
               )}
             </div>
 
-            {/* Tabs */}
-            <div className="border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <nav className="-mb-px flex space-x-8">
-                  {tabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => handleTabChange(tab.id)}
-                      className={`${
-                        activeTab === tab.id
-                          ? 'border-indigo-500 text-indigo-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
-                    >
-                      {tab.icon}
-                      <span>{tab.label}</span>
-                    </button>
-                  ))}
-                </nav>
-                {analysisData && (
-                  <div className="flex items-center text-sm text-green-600">
-                    <FiCheckCircle className="h-4 w-4 mr-1" />
-                    Analysis Complete {analysisSource && `(${analysisSource === 'fetched' ? 'Fetched' : 'Generated'})`}
-                  </div>
-                )}
+            {/* Analysis Types */}
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Analysis Type</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {analysisTypes.map((type) => (
+                  <button
+                    key={type.id}
+                    onClick={() => handleTabChange(type.id)}
+                    className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                      activeTab === type.id
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="text-xl">{type.icon}</div>
+                      <div className="text-left">
+                        <div className="font-medium">{type.label}</div>
+                        <div className="text-sm text-gray-500">{type.description}</div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Content Area */}
-            <div className="mt-6">
+            {/* Chart Controls - Always Row */}
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Chart Options</h3>
+              <div className="mb-6 flex flex-col md:flex-row md:items-center md:space-x-6 space-y-4 md:space-y-0">
+                <div className="flex flex-row flex-wrap gap-2 items-center w-full">
+                  <label className="text-xs text-gray-500">Chart Type</label>
+                  <select
+                    value={selectedChartType}
+                    onChange={e => setSelectedChartType(e.target.value)}
+                    className="border rounded px-2 py-1 min-w-[140px] mr-4"
+                  >
+                    {chartTypes.map(type => (
+                      <option key={type.id} value={type.id}>{type.label}</option>
+                    ))}
+                  </select>
+                  <label className="text-xs text-gray-500 ml-4">X-Axis</label>
+                  <select value={xAxis} onChange={e => setXAxis(e.target.value)} className="border rounded px-2 py-1 min-w-[100px]">
+                    <option value="">{fileColumns.length === 0 ? 'No columns' : 'Select'}</option>
+                    {fileColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                  </select>
+                  <label className="text-xs text-gray-500 ml-2">Y-Axis</label>
+                  <select value={yAxis} onChange={e => setYAxis(e.target.value)} className="border rounded px-2 py-1 min-w-[100px]">
+                    <option value="">{fileColumns.length === 0 ? 'No columns' : 'Select'}</option>
+                    {fileColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                  </select>
+                  <button className={`ml-4 px-3 py-1 rounded border ${showGrid ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border-blue-600'}`} onClick={() => setShowGrid(g => !g)}>Grid</button>
+                  <button className={`px-3 py-1 rounded border ${showLegend ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border-blue-600'}`} onClick={() => setShowLegend(l => !l)}>Legend</button>
+                  <button className={`px-3 py-1 rounded border ${showValues ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border-blue-600'}`} onClick={() => setShowValues(v => !v)}>Values</button>
+                  <button
+                    onClick={generateAnalysis}
+                    disabled={!selectedFile || isAnalyzing || fileColumns.length === 0}
+                    className="ml-4 px-6 py-2 rounded bg-indigo-600 text-white font-semibold disabled:opacity-50"
+                  >
+                    {isAnalyzing ? 'Analyzing...' : 'Generate Chart'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Analysis Results */}
+            <div className="p-6">
               {isLoadingFiles ? (
                 <div className="flex justify-center items-center h-64">
                   <div className="text-center">
@@ -568,282 +525,143 @@ const Analysis = () => {
                     </div>
                   </div>
                 </div>
-              ) : isLoading ? (
+              ) : !selectedFile ? (
                 <div className="flex justify-center items-center h-64">
                   <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Analyzing data...</p>
+                    <FiBarChart2 className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No file selected</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Please select a file from the dropdown above to view analysis.
+                    </p>
+                  </div>
+                </div>
+              ) : !analysisData ? (
+                <div className="flex justify-center items-center h-64">
+                  <div className="text-center">
+                    <FiBarChart2 className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No analysis performed</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Click "Analyze" to generate analysis for the selected file.
+                    </p>
                   </div>
                 </div>
               ) : (
-                <div>
-                  {!selectedFile ? (
-                    <div className="flex justify-center items-center h-64">
-                      <div className="text-center">
-                        <FiBarChart2 className="mx-auto h-12 w-12 text-gray-400" />
-                        <h3 className="mt-2 text-sm font-medium text-gray-900">No file selected</h3>
-                        <p className="mt-1 text-sm text-gray-500">
-                          Please select a file from the dropdown above to view analysis.
-                        </p>
-                      </div>
-                    </div>
-                  ) : !analysisData ? (
-                    <div className="flex justify-center items-center h-64">
-                      <div className="text-center">
-                        <FiBarChart2 className="mx-auto h-12 w-12 text-gray-400" />
-                        <h3 className="mt-2 text-sm font-medium text-gray-900">No analysis performed</h3>
-                        <p className="mt-1 text-sm text-gray-500">
-                          Use "Get Analysis" to fetch existing analysis or "Analyze" to generate new analysis.
-                        </p>
-                        <div className="mt-4 space-x-2">
-                          <button
-                            onClick={handleGetAnalysis}
-                            disabled={!selectedFile || isFetchingAnalysis}
-                            className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                          >
-                            {isFetchingAnalysis ? (
-                              <>
-                                <FiRefreshCw className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                                Fetching...
-                              </>
-                            ) : (
-                              <>
-                                <FiDownload className="-ml-1 mr-2 h-4 w-4" />
-                                Get Analysis
-                              </>
-                            )}
-                          </button>
-                          <button
-                            onClick={handleAnalyze}
-                            disabled={!selectedFile || isAnalyzing}
-                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                          >
-                            {isAnalyzing ? (
-                              <>
-                                <FiRefreshCw className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                                Analyzing...
-                              </>
-                            ) : (
-                              <>
-                                <FiBarChart2 className="-ml-1 mr-2 h-4 w-4" />
-                                Analyze
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      {activeTab === 'overview' && (
-                        <div>
-                          {/* Stats Cards */}
-                          <div className="grid grid-cols-1 gap-5 mt-6 sm:grid-cols-2 lg:grid-cols-4">
-                            {stats.map((stat, index) => (
-                              <motion.div
-                                key={index}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.3, delay: index * 0.1 }}
-                                className="bg-white overflow-hidden shadow rounded-lg"
-                              >
-                                <div className="px-4 py-5 sm:p-6">
-                                  <dt className="text-sm font-medium text-gray-500 truncate">
-                                    {stat.title}
-                                  </dt>
-                                  <dd className="mt-1 text-3xl font-semibold text-gray-900">
-                                    {stat.value}
-                                  </dd>
-                                </div>
-                              </motion.div>
-                            ))}
-                          </div>
-
-                          {/* Chart */}
-                          {chartData ? (
-                            <div className="mt-8 bg-white p-6 rounded-lg shadow">
-                              <div className="h-80">
-                                <Bar
-                                  data={chartData}
-                                  options={{
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    plugins: {
-                                      legend: {
-                                        position: 'top',
-                                      },
-                                      title: {
-                                        display: true,
-                                        text: 'Sales Overview',
-                                      },
-                                    },
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="mt-8 bg-white p-6 rounded-lg shadow">
-                              <div className="h-80 flex items-center justify-center">
-                                <p className="text-gray-500">No data found for this analysis.</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {activeTab === 'sales' && (
-                        <div>
-                          {chartData ? (
-                            <div className="bg-white p-6 rounded-lg shadow">
-                              <div className="h-96">
-                                <Line
-                                  data={chartData}
-                                  options={{
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    plugins: {
-                                      legend: {
-                                        position: 'top',
-                                      },
-                                      title: {
-                                        display: true,
-                                        text: 'Sales Trend',
-                                      },
-                                    },
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="bg-white p-6 rounded-lg shadow">
-                              <div className="h-96 flex items-center justify-center">
-                                <p className="text-gray-500">No data found for this analysis.</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {activeTab === 'products' && (
-                        <div>
-                          {chartData ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                              <div className="bg-white p-6 rounded-lg shadow">
-                                <div className="h-96">
-                                  <Pie
-                                    data={chartData}
-                                    options={{
-                                      responsive: true,
-                                      maintainAspectRatio: false,
-                                      plugins: {
-                                        legend: {
-                                          position: 'right',
-                                        },
-                                        title: {
-                                          display: true,
-                                          text: 'Product Distribution',
-                                        },
-                                      },
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                              <div className="bg-white p-6 rounded-lg shadow overflow-x-auto">
-                                <h3 className="text-lg font-medium text-gray-900 mb-4">Top Products</h3>
-                                <table className="min-w-full divide-y divide-gray-200">
-                                  <thead className="bg-gray-50">
-                                    <tr>
-                                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Product
-                                      </th>
-                                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Sales
-                                      </th>
-                                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Percentage
-                                      </th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="bg-white divide-y divide-gray-200">
-                                    {tableData.map((item, index) => (
-                                      <tr key={index} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                          {item.product}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                          ${item.sales?.toFixed(2) || '0.00'}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                          {item.percentage?.toFixed(1) || '0.0'}%
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="bg-white p-6 rounded-lg shadow">
-                              <div className="h-96 flex items-center justify-center">
-                                <p className="text-gray-500">No data found for this analysis.</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="space-y-6"
+                >
+                  {/* Stats Cards */}
+                  {stats.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {stats.map((stat, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.3, delay: index * 0.1 }}
+                          className="bg-white p-4 rounded-lg border border-gray-200"
+                        >
+                          <div className="text-sm font-medium text-gray-500">{stat.title}</div>
+                          <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
+                        </motion.div>
+                      ))}
                     </div>
                   )}
-                </div>
-              )}
-            </div>
 
-            {/* Export Button */}
-            <div className="mt-6 flex justify-end space-x-2">
-              {analysisData && (
-                <>
-                  <button
-                    onClick={handleGetAnalysis}
-                    disabled={isFetchingAnalysis}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                  >
-                    {isFetchingAnalysis ? (
-                      <>
-                        <FiRefreshCw className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                        Fetching...
-                      </>
-                    ) : (
-                      <>
+                  {/* Chart */}
+                  {chartData && (
+                    <div className="bg-white p-6 rounded-lg border border-gray-200">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Chart Visualization</h3>
+                      <div className="h-80">
+                        <Bar
+                          data={chartData}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: {
+                                position: 'top',
+                              },
+                            },
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Table */}
+                  {tableData.length > 0 && (
+                    <div className="bg-white p-6 rounded-lg border border-gray-200">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Data Table</h3>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              {Object.keys(tableData[0] || {}).map((header) => (
+                                <th
+                                  key={header}
+                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
+                                  {header}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {tableData.map((row, index) => (
+                              <tr key={index}>
+                                {Object.values(row).map((value, cellIndex) => (
+                                  <td
+                                    key={cellIndex}
+                                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+                                  >
+                                    {typeof value === 'number' ? value.toFixed(2) : value}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Export Options */}
+                  <div className="bg-white p-6 rounded-lg border border-gray-200">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Export Analysis</h3>
+                    <div className="flex space-x-4">
+                      <button
+                        onClick={() => handleExport('json')}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
                         <FiDownload className="-ml-1 mr-2 h-4 w-4" />
-                        Get Analysis
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={handleAnalyze}
-                    disabled={isAnalyzing}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                  >
-                    {isAnalyzing ? (
-                      <>
-                        <FiRefreshCw className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                        Re-analyzing...
-                      </>
-                    ) : (
-                      <>
-                        <FiRefreshCw className="-ml-1 mr-2 h-4 w-4" />
-                        Re-analyze
-                      </>
-                    )}
-                  </button>
-                </>
+                        Export JSON
+                      </button>
+                      <button
+                        onClick={() => handleExport('csv')}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        <FiDownload className="-ml-1 mr-2 h-4 w-4" />
+                        Export CSV
+                      </button>
+                    </div>
+                  </div>
+                  {/* Show generated chart image and report link if available */}
+                  {analysisData && analysisData.chartImages && analysisData.chartImages.length > 0 && (
+                    <div className="bg-white p-6 rounded-lg border border-gray-200">
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Generated Chart</h3>
+                      <img src={`http://localhost:8000/output/${analysisData.chartImages[0].split('/').pop()}`} alt="Generated Chart" className="max-w-xl border rounded shadow" />
+                    </div>
+                  )}
+                  {analysisData && analysisData.reportPath && (
+                    <div className="bg-white p-6 rounded-lg border border-gray-200">
+                      <a href={`http://localhost:8000/output/${analysisData.reportPath.split('/').pop()}`} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline">Download PDF Report</a>
+                    </div>
+                  )}
+                </motion.div>
               )}
-              <button
-                onClick={() => handleExport('csv')}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                <FiDownload className="-ml-1 mr-2 h-5 w-5" />
-                Export as CSV
-              </button>
             </div>
           </div>
         </div>

@@ -87,6 +87,30 @@ const Import = () => {
     }
   };
 
+  // Check if file exists in DB for this user
+  const checkFileExistsInDB = async (fileName) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await axios.get('http://localhost:8000/api/files/getfiles', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        params: {
+          search: fileName
+        }
+      });
+      if (response.data && response.data.data && response.data.data.length > 0) {
+        // Find exact match by name
+        const match = response.data.data.find(f => f.originalName === fileName);
+        return match || null;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error checking file in DB:', err);
+      return null;
+    }
+  };
+
   // Handle file upload
 const handleImport = async () => {
   if (!file) {
@@ -103,6 +127,20 @@ const handleImport = async () => {
   setIsLoading(true);
   setImportStatus(null);
   setUploadProgress(0);
+
+  // Check if file exists in DB
+  const existing = await checkFileExistsInDB(file.name);
+  if (existing) {
+    setImportStatus({
+      success: true,
+      message: 'File already exists in your account. Using existing file.',
+      data: existing
+    });
+    toast.success('File already exists. Using existing file.');
+    setFile(null);
+    setUploadProgress(0);
+    return;
+  }
 
   const formData = new FormData();
   formData.append('files', file); // Changed from 'file' to 'files' to match server expectation

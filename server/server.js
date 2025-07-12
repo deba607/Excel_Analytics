@@ -62,7 +62,7 @@ app.use('/api/contact', userContactRouter);
 
 // Set static folders
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/outputs', express.static(path.join(__dirname, 'outputs')));
+app.use('/output', express.static(path.join(__dirname, 'output')));
 
 // Mount routers
 app.use('/api/files', fileRoutes);

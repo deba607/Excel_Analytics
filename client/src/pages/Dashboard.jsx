@@ -51,7 +51,8 @@ const menuItems = (isAdmin) => [
 const Dashboard = () => {
   // Authentication
   const { userEmail, isLoggedIn, LogoutUser } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Sidebar is closed by default
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const location = useLocation();
@@ -93,6 +94,11 @@ const Dashboard = () => {
     }
   }, [isLoggedIn, navigate, location]);
 
+  // Always close sidebar on navigation (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
   const getUserInitials = useCallback(() => {
     if (!userEmail) return <FiUser className="w-4 h-4" />;
     const name = userEmail || '';
@@ -121,14 +127,24 @@ const Dashboard = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Mobile hamburger menu button (top left) - only when sidebar is closed */}
+      {!sidebarOpen && (
+        <button
+          className="fixed top-4 left-4 z-40 p-2 rounded-lg bg-white shadow lg:hidden"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open sidebar"
+        >
+          <FiMenu className="w-6 h-6 text-gray-800" />
+        </button>
+      )}
       {/* Mobile sidebar backdrop */}
       <AnimatePresence>
-        {!sidebarOpen && (
+        {sidebarOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.5 }}
             exit={{ opacity: 0 }}
-            onClick={toggleSidebar}
+            onClick={() => setSidebarOpen(false)}
             className="fixed inset-0 z-20 bg-black lg:hidden"
           />
         )}
@@ -146,7 +162,7 @@ const Dashboard = () => {
             Excel Analytics
           </Link>
           <button
-            onClick={toggleSidebar}
+            onClick={() => setSidebarOpen(false)}
             className="p-1 rounded-lg hover:bg-gray-700 focus:outline-none"
             aria-label="Toggle sidebar"
           >
@@ -154,7 +170,7 @@ const Dashboard = () => {
           </button>
         </div>
 
-        <nav className="flex-1 px-2 py-4 overflow-y-auto">
+        <nav className="flex-1 px-2 py-4 overflow-y-auto" onClick={() => setSidebarOpen(false)}>
           <ul className="space-y-1">
             {filteredMenuItems.map((item, index) => (
               <li key={item.path}>
@@ -162,6 +178,7 @@ const Dashboard = () => {
                   <Link
                     to={item.path}
                     onClick={() => {
+                      setSidebarOpen(false);
                       if (item.submenu) {
                         toggleSubmenu(index);
                       }
