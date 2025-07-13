@@ -381,17 +381,18 @@ exports.generateChart = async (req, res) => {
     // Generate chart image
     await ensureOutputDir();
     const filename = `chart_${chartType}_${Date.now()}.png`;
-    const chartImagePath = await saveChartImage(chartType, chartData, {}, filename);
-
-    // Save analysis to database
+    await saveChartImage(chartType, chartData, {}, filename); // Only pass filename
+    const chartImagePath = path.join('output', filename); // Store as 'output/filename'
+    // Save analysis
+    let analysis;
     try {
-      await Analysis.create({
-        userEmail: userEmail,
-        fileId: file._id,
+      analysis = await Analysis.create({
+        userEmail,
+        fileId,
         fileName: file.originalName,
-        chartType: chartType,
-        xAxis: xAxis,
-        yAxis: yAxis,
+        chartType,
+        xAxis,
+        yAxis,
         reportPath: chartImagePath
       });
       console.log('[GenerateChart] Saved to database');
@@ -425,7 +426,10 @@ exports.getAnalysisHistory = async (req, res) => {
     const userEmail = req.user?.email;
     const { fileId } = req.query;
 
+    console.log('[Analysis History] Request received:', { userEmail, fileId });
+
     if (!userEmail) {
+      console.log('[Analysis History] No user email found');
       return res.status(401).json({
         success: false,
         message: 'Authentication required'
@@ -437,9 +441,13 @@ exports.getAnalysisHistory = async (req, res) => {
       query.fileId = fileId;
     }
 
+    console.log('[Analysis History] Query:', query);
+
     const analyses = await Analysis.find(query)
       .sort({ createdAt: -1 })
       .limit(50);
+
+    console.log('[Analysis History] Found analyses:', analyses.length);
 
     return res.status(200).json({
       success: true,
@@ -462,6 +470,10 @@ exports.exportAnalysis = async (req, res) => {
   try {
     const { fileId, chartType, xAxis, yAxis, format = 'png' } = req.query;
     const userEmail = req.user?.email;
+    const fs = require('fs');
+    const sharp = require('sharp');
+    const PDFDocument = require('pdfkit');
+    const path = require('path');
 
     console.log('[ExportAnalysis] Request:', { fileId, chartType, xAxis, yAxis, format, userEmail });
 
@@ -472,7 +484,7 @@ exports.exportAnalysis = async (req, res) => {
       });
     }
 
-    // Find the analysis record matching all chart options
+    // Revert: Only look up the analysis record, do not generate on-demand
     const analysis = await Analysis.findOne({
       fileId,
       userEmail,
@@ -480,7 +492,6 @@ exports.exportAnalysis = async (req, res) => {
       xAxis,
       yAxis
     }).sort({ createdAt: -1 });
-
     if (!analysis) {
       console.log('[ExportAnalysis] Analysis not found for', { fileId, userEmail, chartType, xAxis, yAxis });
       return res.status(404).json({
@@ -488,7 +499,6 @@ exports.exportAnalysis = async (req, res) => {
         message: 'Analysis not found for the specified chart options.'
       });
     }
-
     if (!analysis.reportPath) {
       console.log('[ExportAnalysis] No chart image found for analysis');
       return res.status(404).json({
@@ -496,13 +506,8 @@ exports.exportAnalysis = async (req, res) => {
         message: 'No chart image found for this analysis.'
       });
     }
-
-    const resolvedPath = require('path').resolve(analysis.reportPath);
-    const fs = require('fs');
-    const sharp = require('sharp');
-    const PDFDocument = require('pdfkit');
-
-    // Determine the original file extension
+    // Always resolve reportPath relative to project root
+    const resolvedPath = require('path').resolve(process.cwd(), analysis.reportPath);
     const originalExt = analysis.reportPath.split('.').pop().toLowerCase();
     let contentType;
     let filename;
@@ -540,7 +545,6 @@ exports.exportAnalysis = async (req, res) => {
     } else if (format === 'pdf') {
       // Convert image to PDF
       try {
-        // Check if file exists and is a valid image
         fs.access(resolvedPath, fs.constants.F_OK, async (err) => {
           if (err) {
             console.error('[ExportAnalysis] PDF: File does not exist on disk:', resolvedPath);
@@ -549,7 +553,6 @@ exports.exportAnalysis = async (req, res) => {
               message: 'Export file does not exist on disk.'
             });
           }
-          // Try to load the image with sharp to verify it's a valid image
           try {
             await sharp(resolvedPath).metadata();
           } catch (imgErr) {
@@ -585,12 +588,49 @@ exports.exportAnalysis = async (req, res) => {
     } else if (format === 'jpg' || format === 'jpeg' || format === 'png') {
       // Convert image to requested format using sharp
       try {
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        const transformer = sharp(resolvedPath).toFormat(format === 'jpg' ? 'jpeg' : format);
-        transformer.pipe(res);
+        fs.access(resolvedPath, fs.constants.F_OK, async (err) => {
+          if (err) {
+            console.error('[ExportAnalysis] Image: File does not exist on disk:', resolvedPath);
+            return res.status(404).json({
+              success: false,
+              message: 'Export file does not exist on disk.'
+            });
+          }
+          try {
+            await sharp(resolvedPath).metadata();
+          } catch (imgErr) {
+            console.error('[ExportAnalysis] Image: File is not a valid image:', resolvedPath, imgErr);
+            return res.status(400).json({
+              success: false,
+              message: 'Export file is not a valid image.'
+            });
+          }
+          try {
+            res.setHeader('Content-Type', contentType);
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            const transformer = sharp(resolvedPath).toFormat(format === 'jpg' ? 'jpeg' : format);
+            transformer.on('error', (err) => {
+              console.error('[ExportAnalysis] Sharp stream error:', err);
+              if (!res.headersSent) {
+                res.status(500).json({
+                  success: false,
+                  message: 'Error converting image.'
+                });
+              }
+            });
+            transformer.pipe(res);
+          } catch (err) {
+            console.error('[ExportAnalysis] Error converting image:', err);
+            if (!res.headersSent) {
+              return res.status(500).json({
+                success: false,
+                message: 'Error converting image.'
+              });
+            }
+          }
+        });
       } catch (err) {
-        console.error('[ExportAnalysis] Error converting image:', err);
+        console.error('[ExportAnalysis] Error in image export logic:', err);
         return res.status(500).json({
           success: false,
           message: 'Error converting image.'

@@ -70,6 +70,7 @@ import Login from './pages/Login';
 import Home from './pages/Home';
 import Import from './pages/after_login_pages/Import';
 import Analysis from './pages/after_login_pages/Analysis';
+import Report from './pages/after_login_pages/Report';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, requiredRole = 'user' }) => {
@@ -184,7 +185,7 @@ function App() {
               <Route path="/dashboard/powerpivot" element={<div>Power Pivot</div>} />
               <Route path="/dashboard/automation" element={<div>Automation</div>} />
               <Route path="/dashboard/collaboration" element={<div>Collaboration</div>} />
-              <Route path="/dashboard/reports" element={<div>Reports</div>} />
+              <Route path="/dashboard/reports" element={<Report />} />
               <Route path="/dashboard/settings" element={<div>Settings</div>} />
             </Route>
           </Route>
