@@ -104,6 +104,23 @@ const Report = () => {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
+      // Check if the response is a JSON error (not a file)
+      const contentType = response.headers['content-type'];
+      if (contentType && contentType.includes('application/json')) {
+        // Read the blob as text and parse the error
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const errorData = JSON.parse(reader.result);
+            toast.error(errorData.message || 'Failed to download file.');
+          } catch {
+            toast.error('Failed to download file.');
+          }
+        };
+        reader.readAsText(response.data);
+        return;
+      }
+      // Otherwise, proceed with download
       const ext = format;
       const filename = `chart_${report.chartType}_${report.xAxis}_${report.yAxis}_${new Date(report.createdAt).toISOString().split('T')[0]}.${ext}`;
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -114,7 +131,25 @@ const Report = () => {
       link.click();
       link.remove();
     } catch (error) {
-      alert('Failed to download file.');
+      // Try to show backend error message if available
+      if (error.response && error.response.data) {
+        try {
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              const errorData = JSON.parse(reader.result);
+              toast.error(errorData.message || 'Failed to download file.');
+            } catch {
+              toast.error('Failed to download file.');
+            }
+          };
+          reader.readAsText(error.response.data);
+        } catch {
+          toast.error('Failed to download file.');
+        }
+      } else {
+        toast.error('Failed to download file.');
+      }
     } finally {
       setDownloading(prev => ({ ...prev, [report._id]: false }));
     }

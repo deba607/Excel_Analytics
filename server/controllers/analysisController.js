@@ -484,7 +484,7 @@ exports.exportAnalysis = async (req, res) => {
       });
     }
 
-    // Revert: Only look up the analysis record, do not generate on-demand
+    // Only look up the analysis record, do not generate on-demand
     const analysis = await Analysis.findOne({
       fileId,
       userEmail,
@@ -512,6 +512,29 @@ exports.exportAnalysis = async (req, res) => {
     let contentType;
     let filename;
 
+    // Check if file exists and is a valid image before proceeding
+    try {
+      await fs.promises.access(resolvedPath, fs.constants.F_OK);
+    } catch (err) {
+      console.error('[ExportAnalysis] File does not exist on disk:', resolvedPath, err);
+      return res.status(404).json({
+        success: false,
+        message: 'Export file does not exist on disk.'
+      });
+    }
+    // Check if file is a valid image (for image/pdf export)
+    if (["pdf", "jpg", "jpeg", "png"].includes(format)) {
+      try {
+        await sharp(resolvedPath).metadata();
+      } catch (imgErr) {
+        console.error('[ExportAnalysis] File is not a valid image:', resolvedPath, imgErr);
+        return res.status(400).json({
+          success: false,
+          message: 'Export file is not a valid image.'
+        });
+      }
+    }
+
     if (format === 'pdf') {
       contentType = 'application/pdf';
       filename = `chart_${analysis.chartType}_${Date.now()}.pdf`;
@@ -529,112 +552,50 @@ exports.exportAnalysis = async (req, res) => {
     // Conversion logic
     if ((format === originalExt) || (format === 'jpeg' && originalExt === 'jpg') || (format === 'jpg' && originalExt === 'jpeg')) {
       // No conversion needed, just send the file
-      fs.access(resolvedPath, fs.constants.F_OK, (err) => {
-        if (err) {
-          console.log('[ExportAnalysis] File does not exist on disk:', resolvedPath);
-          return res.status(404).json({
-            success: false,
-            message: 'Export file does not exist on disk.'
-          });
-        }
-        console.log('[ExportAnalysis] Sending file:', resolvedPath);
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        return res.sendFile(resolvedPath);
-      });
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.sendFile(resolvedPath);
     } else if (format === 'pdf') {
       // Convert image to PDF
       try {
-        fs.access(resolvedPath, fs.constants.F_OK, async (err) => {
-          if (err) {
-            console.error('[ExportAnalysis] PDF: File does not exist on disk:', resolvedPath);
-            return res.status(404).json({
-              success: false,
-              message: 'Export file does not exist on disk.'
-            });
-          }
-          try {
-            await sharp(resolvedPath).metadata();
-          } catch (imgErr) {
-            console.error('[ExportAnalysis] PDF: File is not a valid image:', resolvedPath, imgErr);
-            return res.status(400).json({
-              success: false,
-              message: 'Export file is not a valid image.'
-            });
-          }
-          try {
-            const doc = new PDFDocument({ autoFirstPage: false });
-            res.setHeader('Content-Type', contentType);
-            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-            doc.pipe(res);
-            doc.addPage({ size: [800, 600] });
-            doc.image(resolvedPath, 0, 0, { width: 800, height: 600 });
-            doc.end();
-          } catch (pdfErr) {
-            console.error('[ExportAnalysis] Error generating PDF:', pdfErr);
-            return res.status(500).json({
-              success: false,
-              message: 'Error generating PDF.'
-            });
-          }
-        });
-      } catch (err) {
-        console.error('[ExportAnalysis] Error in PDF export logic:', err);
+        const doc = new PDFDocument({ autoFirstPage: false });
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        doc.pipe(res);
+        doc.addPage({ size: [800, 600] });
+        doc.image(resolvedPath, 0, 0, { width: 800, height: 600 });
+        doc.end();
+      } catch (pdfErr) {
+        console.error('[ExportAnalysis] Error generating PDF:', pdfErr);
         return res.status(500).json({
           success: false,
-          message: 'Error generating PDF.'
+          message: 'Error generating PDF: ' + pdfErr.message
         });
       }
     } else if (format === 'jpg' || format === 'jpeg' || format === 'png') {
       // Convert image to requested format using sharp
       try {
-        fs.access(resolvedPath, fs.constants.F_OK, async (err) => {
-          if (err) {
-            console.error('[ExportAnalysis] Image: File does not exist on disk:', resolvedPath);
-            return res.status(404).json({
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        const transformer = sharp(resolvedPath).toFormat(format === 'jpg' ? 'jpeg' : format);
+        transformer.on('error', (err) => {
+          console.error('[ExportAnalysis] Sharp stream error:', err);
+          if (!res.headersSent) {
+            res.status(500).json({
               success: false,
-              message: 'Export file does not exist on disk.'
+              message: 'Error converting image: ' + err.message
             });
-          }
-          try {
-            await sharp(resolvedPath).metadata();
-          } catch (imgErr) {
-            console.error('[ExportAnalysis] Image: File is not a valid image:', resolvedPath, imgErr);
-            return res.status(400).json({
-              success: false,
-              message: 'Export file is not a valid image.'
-            });
-          }
-          try {
-            res.setHeader('Content-Type', contentType);
-            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-            const transformer = sharp(resolvedPath).toFormat(format === 'jpg' ? 'jpeg' : format);
-            transformer.on('error', (err) => {
-              console.error('[ExportAnalysis] Sharp stream error:', err);
-              if (!res.headersSent) {
-                res.status(500).json({
-                  success: false,
-                  message: 'Error converting image.'
-                });
-              }
-            });
-            transformer.pipe(res);
-          } catch (err) {
-            console.error('[ExportAnalysis] Error converting image:', err);
-            if (!res.headersSent) {
-              return res.status(500).json({
-                success: false,
-                message: 'Error converting image.'
-              });
-            }
           }
         });
+        transformer.pipe(res);
       } catch (err) {
-        console.error('[ExportAnalysis] Error in image export logic:', err);
-        return res.status(500).json({
-          success: false,
-          message: 'Error converting image.'
-        });
+        console.error('[ExportAnalysis] Error converting image:', err);
+        if (!res.headersSent) {
+          return res.status(500).json({
+            success: false,
+            message: 'Error converting image: ' + err.message
+          });
+        }
       }
     } else {
       return res.status(400).json({
@@ -643,10 +604,10 @@ exports.exportAnalysis = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('[Export Analysis] Error:', error);
+    console.error('[Export Analysis] Unexpected error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Internal server error: ' + error.message
     });
   }
 };
