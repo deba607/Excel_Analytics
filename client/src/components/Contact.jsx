@@ -1,7 +1,7 @@
 // src/pages/Contact.jsx
 import React, { useState } from 'react';
 import { FaMapMarkerAlt, FaPhone, FaEnvelope, FaPaperPlane, FaCheckCircle, FaTwitter, FaLinkedin, FaGithub, FaYoutube } from 'react-icons/fa';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -24,7 +24,6 @@ const Contact = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
     try {
       // Replace with your actual API endpoint
       const response = await fetch('http://localhost:8000/api/contact', {
@@ -34,7 +33,6 @@ const Contact = () => {
         },
         body: JSON.stringify(formData),
       });
-
       if (response.ok) {
         setIsSubmitted(true);
         setFormData({ name: '', email: '', subject: '', message: '' });
@@ -68,6 +66,25 @@ const Contact = () => {
     }
   ];
 
+  // Animation variants
+  const formContainer = {
+    hidden: { opacity: 0, y: 40 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6, type: 'spring' } }
+  };
+  const fieldVariant = {
+    hidden: { opacity: 0, y: 20 },
+    visible: (i) => ({ opacity: 1, y: 0, transition: { delay: 0.1 + i * 0.08, duration: 0.4 } })
+  };
+  const buttonVariant = {
+    rest: { scale: 1 },
+    hover: { scale: 1.04, boxShadow: '0 4px 16px rgba(59,130,246,0.15)' },
+    tap: { scale: 0.97 }
+  };
+  const successVariant = {
+    hidden: { opacity: 0, scale: 0.95, y: 20 },
+    visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.5 } }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -84,103 +101,92 @@ const Contact = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Contact Form */}
           <motion.div 
-            initial={{ opacity: 0, x: -50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
+            variants={formContainer}
+            initial="hidden"
+            animate="visible"
             className="bg-white p-8 rounded-2xl shadow-lg"
           >
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Send us a message</h2>
-            
-            {isSubmitted ? (
-              <div className="text-center py-8">
-                <FaCheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
-                <h3 className="text-2xl font-medium text-gray-900 mb-2">Thank you!</h3>
-                <p className="text-gray-600">Your message has been sent successfully. We'll get back to you soon!</p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-10">
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="John Doe"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="you@example.com"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="subject" className="block text-sm font-medium text-gray-700">
-                    Subject
-                  </label>
-                  <input
-                    type="text"
-                    id="subject"
-                    name="subject"
-                    value={formData.subject}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="How can we help you?"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="message" className="block text-sm font-medium text-gray-700">
-                    Message
-                  </label>
-                  <textarea
-                    id="message"
-                    name="message"
-                    rows="14"
-                    value={formData.message}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Tell us more about your needs..."
-                  ></textarea>
-                </div>
-
-                <div>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className={`w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
-                  >
-                    {isSubmitting ? (
-                      'Sending...'
-                    ) : (
-                      <>
-                        <FaPaperPlane className="mr-2" />
-                        Send Message
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
+            <AnimatePresence mode="wait">
+              {isSubmitted ? (
+                <motion.div
+                  key="success"
+                  variants={successVariant}
+                  initial="hidden"
+                  animate="visible"
+                  exit="hidden"
+                  className="text-center py-8"
+                >
+                  <FaCheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
+                  <h3 className="text-2xl font-medium text-gray-900 mb-2">Thank you!</h3>
+                  <p className="text-gray-600">Your message has been sent successfully. We'll get back to you soon!</p>
+                </motion.div>
+              ) : (
+                <motion.form
+                  key="form"
+                  onSubmit={handleSubmit}
+                  className="space-y-10"
+                  initial="hidden"
+                  animate="visible"
+                  exit="hidden"
+                >
+                  {['name', 'email', 'subject', 'message'].map((field, i) => (
+                    <motion.div key={field} custom={i} variants={fieldVariant}>
+                      <label htmlFor={field} className="block text-sm font-medium text-gray-700 capitalize">
+                        {field === 'name' ? 'Full Name' : field.charAt(0).toUpperCase() + field.slice(1)}
+                      </label>
+                      {field !== 'message' ? (
+                        <input
+                          type={field === 'email' ? 'email' : 'text'}
+                          id={field}
+                          name={field}
+                          value={formData[field]}
+                          onChange={handleChange}
+                          required
+                          className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                          placeholder={
+                            field === 'name' ? 'John Doe' :
+                            field === 'email' ? 'you@example.com' :
+                            field === 'subject' ? 'How can we help you?' : ''
+                          }
+                        />
+                      ) : (
+                        <textarea
+                          id="message"
+                          name="message"
+                          rows="14"
+                          value={formData.message}
+                          onChange={handleChange}
+                          required
+                          className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Tell us more about your needs..."
+                        ></textarea>
+                      )}
+                    </motion.div>
+                  ))}
+                  <motion.div variants={fieldVariant} custom={4}>
+                    <motion.button
+                      type="submit"
+                      disabled={isSubmitting}
+                      variants={buttonVariant}
+                      initial="rest"
+                      whileHover="hover"
+                      whileTap="tap"
+                      className={`w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                      {isSubmitting ? (
+                        'Sending...'
+                      ) : (
+                        <>
+                          <FaPaperPlane className="mr-2" />
+                          Send Message
+                        </>
+                      )}
+                    </motion.button>
+                  </motion.div>
+                </motion.form>
+              )}
+            </AnimatePresence>
           </motion.div>
 
           {/* Contact Information */}
@@ -196,7 +202,6 @@ const Contact = () => {
                 Have questions about our services or need support? Fill out the form and our team will get back to you within 24 hours.
               </p>
             </div>
-
             <div className="space-y-6">
               {contactInfo.map((item, index) => (
                 <a
@@ -216,7 +221,6 @@ const Contact = () => {
                 </a>
               ))}
             </div>
-
             {/* Social Media Links */}
             <div className="pt-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Follow Us</h3>
@@ -243,7 +247,6 @@ const Contact = () => {
                 })}
               </div>
             </div>
-
             {/* Map Embed */}
             <div className="pt-6">
               <div className="aspect-w-16 aspect-h-9 rounded-xl overflow-hidden">
