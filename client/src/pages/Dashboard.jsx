@@ -74,10 +74,7 @@ const menuItems = (isAdmin) => [
     icon: <FiUpload className="w-5 h-5" />,
     path: '/dashboard/import',
     submenu: [
-      { name: 'From Files', path: '/dashboard/import/files' },
-      { name: 'From Database', path: '/dashboard/import/database' },
-      { name: 'From Web/API', path: '/dashboard/import/web' },
-      { name: 'From Cloud', path: '/dashboard/import/cloud' }
+      { name: 'From Files', path: '/dashboard/import/files' }
     ]
   },
   { 
@@ -365,14 +362,6 @@ const Dashboard = () => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.4 }}
             >
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="p-2 text-gray-500 rounded-full hover:bg-gray-100 focus:outline-none"
-                aria-label="Settings"
-              >
-                <FiSettings className="w-5 h-5" />
-              </motion.button>
               <motion.div 
                 className="relative"
                 whileHover={{ scale: 1.05 }}
