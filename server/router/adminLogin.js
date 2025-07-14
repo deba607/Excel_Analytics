@@ -3,6 +3,7 @@ const router = express.Router();
 const Admin = require('../models/Admin');
 const User = require('../models/user-registration');
 const File = require('../models/File');
+const Analysis = require('../models/Analysis');
 const { sendOtpEmail } = require('../utils/sendOtpEmail');
 
 // In-memory store for OTPs (for demo/testing)
@@ -66,11 +67,15 @@ router.get('/stats', async (req, res) => {
   try {
     const totalUsers = await User.countDocuments();
     const totalFiles = await File.countDocuments();
+    const totalAdmins = await Admin.countDocuments();
+    const totalReports = await Analysis.countDocuments();
     res.json({
       success: true,
       data: {
         totalUsers,
-        totalFiles
+        totalFiles,
+        totalAdmins,
+        totalReports
       }
     });
   } catch (error) {
@@ -87,6 +92,97 @@ router.get('/users', async (req, res) => {
   } catch (error) {
     console.error('Error fetching all users:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch users' });
+  }
+});
+
+// Get all admins (for admin dashboard)
+router.get('/admins', async (req, res) => {
+  try {
+    const admins = await Admin.find({}, '-password -__v'); // Exclude password and __v
+    res.json({ success: true, admins });
+  } catch (error) {
+    console.error('Error fetching all admins:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch admins' });
+  }
+});
+
+// Get all files with user details (for admin dashboard)
+router.get('/files', async (req, res) => {
+  try {
+    const files = await File.find({}, '-__v').sort('-createdAt');
+    
+    // Get unique user emails from files
+    const userEmails = [...new Set(files.map(file => file.userEmail))];
+    
+    // Fetch user details for all emails
+    const users = await User.find({ email: { $in: userEmails } }, 'name email');
+    
+    // Create a map of email to user details
+    const userMap = {};
+    users.forEach(user => {
+      userMap[user.email] = user;
+    });
+    
+    // Add user details to each file
+    const filesWithUsers = files.map(file => {
+      const fileObj = file.toObject();
+      fileObj.user = userMap[file.userEmail] || { name: 'Unknown User', email: file.userEmail };
+      return fileObj;
+    });
+    
+    res.json({ success: true, files: filesWithUsers });
+  } catch (error) {
+    console.error('Error fetching all files:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch files' });
+  }
+});
+
+// Get all reports with file and user details (for admin dashboard)
+router.get('/reports', async (req, res) => {
+  try {
+    const reports = await Analysis.find({}, '-__v').sort('-createdAt');
+    
+    // Get unique file IDs from reports
+    const fileIds = [...new Set(reports.map(report => report.fileId))];
+    
+    // Fetch file details for all file IDs
+    const files = await File.find({ _id: { $in: fileIds } }, 'originalName filename userEmail');
+    
+    // Get unique user emails from files
+    const userEmails = [...new Set(files.map(file => file.userEmail))];
+    
+    // Fetch user details for all emails
+    const users = await User.find({ email: { $in: userEmails } }, 'name email');
+    
+    // Create maps for quick lookup
+    const fileMap = {};
+    files.forEach(file => {
+      fileMap[file._id.toString()] = file;
+    });
+    
+    const userMap = {};
+    users.forEach(user => {
+      userMap[user.email] = user;
+    });
+    
+    // Add file and user details to each report
+    const reportsWithDetails = reports.map(report => {
+      const reportObj = report.toObject();
+      const file = fileMap[report.fileId];
+      if (file) {
+        reportObj.file = file;
+        reportObj.user = userMap[file.userEmail] || { name: 'Unknown User', email: file.userEmail };
+      } else {
+        reportObj.file = { originalName: 'Unknown File', filename: 'Unknown', userEmail: 'unknown' };
+        reportObj.user = { name: 'Unknown User', email: 'unknown' };
+      }
+      return reportObj;
+    });
+    
+    res.json({ success: true, reports: reportsWithDetails });
+  } catch (error) {
+    console.error('Error fetching all reports:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch reports' });
   }
 });
 

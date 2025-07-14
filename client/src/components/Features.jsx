@@ -403,7 +403,7 @@ const Features = () => {
             >
               Start Free Trial
             </motion.button>
-          </div>
+        </div>
         </motion.div>
       </div>
     </section>

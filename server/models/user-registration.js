@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true,
-  },
+    },
   isAdmin: {
     type: Boolean,
     default: false,
@@ -59,7 +59,7 @@ userSchema.pre("save", async function(next) {
     )
       } catch (err) {
         throw err;
-      }
+        }
   };
 
 // Define the model or the collection name

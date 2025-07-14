@@ -76,8 +76,8 @@ exports.uploadFiles = async (req, res) => {
               size: existingFile.size,
               uploadedAt: existingFile.createdAt,
               message: 'File already exists, not re-uploaded.'
-            });
-            continue; // Skip to next file
+          });
+          continue; // Skip to next file
           } else {
             // File missing on disk, allow re-upload and update DB
             existingFile.filename = file.filename;

@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { FaUsers, FaFileAlt } from 'react-icons/fa';
+import { FaUsers, FaFileAlt, FaChartBar } from 'react-icons/fa';
+import { FiDownload } from 'react-icons/fi';
 import axios from 'axios';
 import { useAuth } from '../../store/auth';
 import { AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 
 const cardVariants = {
   hidden: { opacity: 0, y: 40 },
@@ -27,6 +29,35 @@ const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState(null);
+  const [showAdminsModal, setShowAdminsModal] = useState(false);
+  const [admins, setAdmins] = useState([]);
+  const [adminsLoading, setAdminsLoading] = useState(false);
+  const [adminsError, setAdminsError] = useState(null);
+  const [showFilesModal, setShowFilesModal] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [filesError, setFilesError] = useState(null);
+  const [showReportsModal, setShowReportsModal] = useState(false);
+  const [reports, setReports] = useState([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportsError, setReportsError] = useState(null);
+  const [downloadFormat, setDownloadFormat] = useState({});
+  const [downloading, setDownloading] = useState({});
+  const [filterUser, setFilterUser] = useState('');
+  const [filterChartType, setFilterChartType] = useState('');
+  const [filterXAxis, setFilterXAxis] = useState('');
+  const [filterYAxis, setFilterYAxis] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterFilesUser, setFilterFilesUser] = useState('');
+
+  // Helper function to format file size
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -40,6 +71,12 @@ const AdminDashboard = () => {
           }
           if (typeof res.data.data.totalFiles === 'number') {
             cards.push({ label: 'Files Imported', value: res.data.data.totalFiles, icon: <FaFileAlt className="text-purple-500 w-6 h-6" /> });
+          }
+          if (typeof res.data.data.totalAdmins === 'number') {
+            cards.push({ label: 'Total Admins', value: res.data.data.totalAdmins, icon: <FaUsers className="text-green-500 w-6 h-6" /> });
+          }
+          if (typeof res.data.data.totalReports === 'number') {
+            cards.push({ label: 'Total Reports', value: res.data.data.totalReports, icon: <FaChartBar className="text-orange-500 w-6 h-6" /> });
           }
           setStats(cards);
         } else {
@@ -102,6 +139,147 @@ const AdminDashboard = () => {
       setUsersLoading(false);
     }
   };
+
+  // Handler for Total Admins card click
+  const handleTotalAdminsClick = async () => {
+    setShowAdminsModal(true);
+    setAdminsLoading(true);
+    setAdminsError(null);
+    try {
+      const res = await axios.get('/api/adminLogin/admins');
+      if (res.data.success) {
+        setAdmins(res.data.admins);
+      } else {
+        setAdminsError('Failed to fetch admins');
+      }
+    } catch (err) {
+      setAdminsError('Failed to fetch admins');
+    } finally {
+      setAdminsLoading(false);
+    }
+  };
+
+  // Handler for Total Files card click
+  const handleTotalFilesClick = async () => {
+    setShowFilesModal(true);
+    setFilesLoading(true);
+    setFilesError(null);
+    try {
+      const res = await axios.get('/api/adminLogin/files');
+      if (res.data.success) {
+        setFiles(res.data.files);
+      } else {
+        setFilesError('Failed to fetch files');
+      }
+    } catch (err) {
+      setFilesError('Failed to fetch files');
+    } finally {
+      setFilesLoading(false);
+    }
+  };
+
+  // Handler for Total Reports card click
+  const handleTotalReportsClick = async () => {
+    setShowReportsModal(true);
+    setReportsLoading(true);
+    setReportsError(null);
+    try {
+      const res = await axios.get('/api/adminLogin/reports');
+      if (res.data.success) {
+        setReports(res.data.reports);
+      } else {
+        setReportsError('Failed to fetch reports');
+      }
+    } catch (err) {
+      setReportsError('Failed to fetch reports');
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  // Download handler for reports
+  const handleDownload = async (report, format) => {
+    setDownloading(prev => ({ ...prev, [report._id]: true }));
+    try {
+      const params = {
+        fileId: report.fileId,
+        chartType: report.chartType,
+        xAxis: report.xAxis,
+        yAxis: report.yAxis,
+        format: format
+      };
+      const response = await axios.get('/api/v1/analysis/export', {
+        params,
+        responseType: 'blob',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      const contentType = response.headers['content-type'];
+      if (contentType && contentType.includes('application/json')) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const errorData = JSON.parse(reader.result);
+            toast.error(errorData.message || 'Failed to download file.');
+          } catch {
+            toast.error('Failed to download file.');
+          }
+        };
+        reader.readAsText(response.data);
+        return;
+      }
+      
+      const ext = format;
+      const filename = `chart_${report.chartType}_${report.xAxis}_${report.yAxis}_${new Date(report.createdAt).toISOString().split('T')[0]}.${ext}`;
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      if (error.response && error.response.data) {
+        try {
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              const errorData = JSON.parse(reader.result);
+              toast.error(errorData.message || 'Failed to download file.');
+            } catch {
+              toast.error('Failed to download file.');
+            }
+          };
+          reader.readAsText(error.response.data);
+        } catch {
+          toast.error('Failed to download file.');
+        }
+      } else {
+        toast.error('Failed to download file.');
+      }
+    } finally {
+      setDownloading(prev => ({ ...prev, [report._id]: false }));
+    }
+  };
+
+  const userEmails = Array.from(new Set(reports.map(r => r.user?.email).filter(Boolean)));
+  const chartTypes = Array.from(new Set(reports.map(r => r.chartType).filter(Boolean)));
+  const xAxes = Array.from(new Set(reports.map(r => r.xAxis).filter(Boolean)));
+  const yAxes = Array.from(new Set(reports.map(r => r.yAxis).filter(Boolean)));
+  const dates = Array.from(new Set(reports.map(r => new Date(r.createdAt).toLocaleDateString()).filter(Boolean)));
+
+  const filteredReports = reports.filter(r =>
+    (!filterUser || r.user?.email === filterUser) &&
+    (!filterChartType || r.chartType === filterChartType) &&
+    (!filterXAxis || r.xAxis === filterXAxis) &&
+    (!filterYAxis || r.yAxis === filterYAxis) &&
+    (!filterDate || new Date(r.createdAt).toLocaleDateString() === filterDate)
+  );
+
+  const fileUserEmails = Array.from(new Set(files.map(f => f.user?.email).filter(Boolean)));
+  const filteredFiles = files.filter(f => !filterFilesUser || f.user?.email === filterFilesUser);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 via-purple-100 to-white py-12 px-4 flex flex-col items-center">
@@ -229,6 +407,299 @@ const AdminDashboard = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Admins Modal */}
+      <AnimatePresence>
+        {showAdminsModal && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[80vh]"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 120 }}
+            >
+              <button
+                className="absolute top-3 right-4 text-gray-400 hover:text-gray-700 text-2xl"
+                onClick={() => setShowAdminsModal(false)}
+                aria-label="Close"
+              >
+                &times;
+              </button>
+              <h3 className="text-2xl font-bold mb-6 text-blue-700 text-center">All Admins</h3>
+              {adminsLoading ? (
+                <div className="text-center text-gray-500 py-8">Loading admins...</div>
+              ) : adminsError ? (
+                <div className="text-center text-red-500 py-8">{adminsError}</div>
+              ) : admins.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">No admins found.</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {admins.map((admin, idx) => (
+                    <motion.div
+                      key={admin._id}
+                      className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl shadow p-6 flex flex-col items-center"
+                      initial={{ opacity: 0, y: 40 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05, type: 'spring', stiffness: 80 }}
+                    >
+                      <FaUsers className="text-green-500 w-8 h-8 mb-2" />
+                      <div className="font-semibold text-lg text-green-700 mb-1">{admin.name}</div>
+                      <div className="text-gray-600 text-sm mb-1">{admin.email}</div>
+                      <div className="text-xs text-gray-400">ID: {admin._id}</div>
+                      <div className="mt-2 px-2 py-1 bg-green-200 text-green-800 rounded text-xs font-semibold">Admin</div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Files Modal */}
+      <AnimatePresence>
+        {showFilesModal && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-6xl relative overflow-y-auto max-h-[90vh]"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 120 }}
+            >
+              <button
+                className="absolute top-3 right-4 text-gray-400 hover:text-gray-700 text-2xl"
+                onClick={() => setShowFilesModal(false)}
+                aria-label="Close"
+              >
+                &times;
+              </button>
+              <h3 className="text-2xl font-bold mb-6 text-blue-700 text-center">All Files</h3>
+              {filesLoading ? (
+                <div className="text-center text-gray-500 py-8">Loading files...</div>
+              ) : filesError ? (
+                <div className="text-center text-red-500 py-8">{filesError}</div>
+              ) : files.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">No files found.</div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {files.length > 0 && (
+                    <div className="flex flex-wrap gap-4 mb-6">
+                      <select value={filterFilesUser} onChange={e => setFilterFilesUser(e.target.value)} className="border rounded px-2 py-1">
+                        <option value="">All Users</option>
+                        {fileUserEmails.map(email => <option key={email} value={email}>{email}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {filteredFiles.map((file, idx) => (
+                    <motion.div
+                      key={file._id}
+                      className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl shadow p-6"
+                      initial={{ opacity: 0, y: 40 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05, type: 'spring', stiffness: 80 }}
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <FaFileAlt className="text-purple-500 w-8 h-8" />
+                        <div className="text-xs text-gray-400">ID: {file._id}</div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div>
+                          <div className="font-semibold text-lg text-purple-700 mb-1">{file.originalName}</div>
+                          <div className="text-gray-600 text-sm">Filename: {file.filename}</div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="font-medium text-gray-700">Size:</span>
+                            <div className="text-gray-600">{formatFileSize(file.size)}</div>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Status:</span>
+                            <div className={`text-sm px-2 py-1 rounded-full inline-block ${
+                              file.status === 'completed' ? 'bg-green-100 text-green-800' :
+                              file.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                              file.status === 'failed' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {file.status}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="border-t pt-3">
+                          <div className="font-medium text-gray-700 mb-1">Uploaded by:</div>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-8 h-8 bg-purple-200 rounded-full flex items-center justify-center">
+                              <span className="text-purple-700 font-semibold text-sm">
+                                {file.user?.name?.charAt(0) || 'U'}
+                              </span>
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900">{file.user?.name || 'Unknown User'}</div>
+                              <div className="text-sm text-gray-500">{file.user?.email || file.userEmail}</div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="text-xs text-gray-400">
+                          Uploaded: {new Date(file.createdAt).toLocaleDateString()} at {new Date(file.createdAt).toLocaleTimeString()}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Reports Modal */}
+      <AnimatePresence>
+        {showReportsModal && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-4xl relative overflow-y-auto max-h-[90vh]"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 120 }}
+            >
+              <button
+                className="absolute top-3 right-4 text-gray-400 hover:text-gray-700 text-2xl"
+                onClick={() => setShowReportsModal(false)}
+                aria-label="Close"
+              >
+                &times;
+              </button>
+              <h3 className="text-2xl font-bold mb-6 text-blue-700 text-center">All Reports</h3>
+              {reportsLoading ? (
+                <div className="text-center text-gray-500 py-8">Loading reports...</div>
+              ) : reportsError ? (
+                <div className="text-center text-red-500 py-8">{reportsError}</div>
+              ) : reports.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">No reports found.</div>
+              ) : (
+                <div className="grid grid-cols-1 gap-6">
+                  {reports.length > 0 && (
+                    <div className="flex flex-wrap gap-4 mb-6">
+                      <select value={filterUser} onChange={e => setFilterUser(e.target.value)} className="border rounded px-2 py-1">
+                        <option value="">All Users</option>
+                        {userEmails.map(email => <option key={email} value={email}>{email}</option>)}
+                      </select>
+                      <select value={filterChartType} onChange={e => setFilterChartType(e.target.value)} className="border rounded px-2 py-1">
+                        <option value="">All Chart Types</option>
+                        {chartTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                      </select>
+                      <select value={filterXAxis} onChange={e => setFilterXAxis(e.target.value)} className="border rounded px-2 py-1">
+                        <option value="">All X-Axis</option>
+                        {xAxes.map(x => <option key={x} value={x}>{x}</option>)}
+                      </select>
+                      <select value={filterYAxis} onChange={e => setFilterYAxis(e.target.value)} className="border rounded px-2 py-1">
+                        <option value="">All Y-Axis</option>
+                        {yAxes.map(y => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                      <select value={filterDate} onChange={e => setFilterDate(e.target.value)} className="border rounded px-2 py-1">
+                        <option value="">All Dates</option>
+                        {dates.map(date => <option key={date} value={date}>{date}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {filteredReports.map((report, idx) => (
+                    <motion.div
+                      key={report._id}
+                      className="bg-gradient-to-br from-orange-50 to-blue-50 rounded-xl shadow p-6"
+                      initial={{ opacity: 0, y: 40 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05, type: 'spring', stiffness: 80 }}
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <FaChartBar className="text-orange-500 w-8 h-8" />
+                        <div className="text-xs text-gray-400">ID: {report._id}</div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div>
+                          <div className="font-semibold text-lg text-orange-700 mb-1">Report for File: {report.fileId}</div>
+                          <div className="text-gray-600 text-sm">Chart Type: {report.chartType}</div>
+                          <div className="text-gray-600 text-sm">X-Axis: {report.xAxis}</div>
+                          <div className="text-gray-600 text-sm">Y-Axis: {report.yAxis}</div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="font-medium text-gray-700">Status:</span>
+                            <div className={`text-sm px-2 py-1 rounded-full inline-block ${
+                              report.status === 'completed' ? 'bg-green-100 text-green-800' :
+                              report.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                              report.status === 'failed' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {report.status}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Created:</span>
+                            <div className="text-gray-600">{new Date(report.createdAt).toLocaleDateString()} at {new Date(report.createdAt).toLocaleTimeString()}</div>
+                          </div>
+                        </div>
+                        
+                        <div className="border-t pt-3">
+                          <div className="font-medium text-gray-700 mb-1">Download Options:</div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => handleDownload(report, 'png')}
+                              className={`px-3 py-1 bg-blue-600 text-white rounded-full text-sm font-semibold hover:bg-blue-700 transition ${
+                                downloading[report._id] ? 'opacity-50 cursor-not-allowed' : ''
+                              }`}
+                              disabled={downloading[report._id]}
+                            >
+                              {downloading[report._id] ? 'Downloading...' : 'PNG'}
+                            </button>
+                            <button
+                              onClick={() => handleDownload(report, 'pdf')}
+                              className={`px-3 py-1 bg-red-600 text-white rounded-full text-sm font-semibold hover:bg-red-700 transition ${
+                                downloading[report._id] ? 'opacity-50 cursor-not-allowed' : ''
+                              }`}
+                              disabled={downloading[report._id]}
+                            >
+                              {downloading[report._id] ? 'Downloading...' : 'PDF'}
+                            </button>
+                            <button
+                              onClick={() => handleDownload(report, 'svg')}
+                              className={`px-3 py-1 bg-green-600 text-white rounded-full text-sm font-semibold hover:bg-green-700 transition ${
+                                downloading[report._id] ? 'opacity-50 cursor-not-allowed' : ''
+                              }`}
+                              disabled={downloading[report._id]}
+                            >
+                              {downloading[report._id] ? 'Downloading...' : 'SVG'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <motion.div
         className="w-full max-w-4xl bg-white rounded-2xl shadow-xl p-8 mb-8"
         initial={{ opacity: 0, y: -40 }}
@@ -251,7 +722,7 @@ const AdminDashboard = () => {
                 initial="hidden"
                 animate="visible"
                 variants={cardVariants}
-                onClick={stat.label === 'Total Users' ? handleTotalUsersClick : undefined}
+                onClick={stat.label === 'Total Users' ? handleTotalUsersClick : stat.label === 'Total Admins' ? handleTotalAdminsClick : stat.label === 'Files Imported' ? handleTotalFilesClick : stat.label === 'Total Reports' ? handleTotalReportsClick : undefined}
               >
                 <div className="mb-2">{stat.icon}</div>
                 <div className="text-2xl font-bold text-blue-700">{stat.value}</div>

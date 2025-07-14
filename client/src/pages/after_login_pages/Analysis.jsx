@@ -121,8 +121,8 @@ const Analysis = () => {
       ]);
       
       setFileColumns(data.allColumns || []);
-      setChartData(null);
-      setTableData([]);
+        setChartData(null);
+        setTableData([]);
       toast.success('File analyzed successfully!');
     } catch (error) {
       console.error('Analysis error:', error);
@@ -216,7 +216,7 @@ const Analysis = () => {
     try {
       setIsExporting(true);
       const params = {
-        fileId: selectedFile,
+          fileId: selectedFile,
         chartType: selectedChartType,
         xAxis,
         yAxis,
@@ -428,91 +428,91 @@ const Analysis = () => {
                   </div>
                 </div>
               ) : !selectedFile ? (
-                <div className="flex justify-center items-center h-64">
-                  <div className="text-center">
-                    <FiBarChart2 className="mx-auto h-12 w-12 text-gray-400" />
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">No file selected</h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Please select a file from the dropdown above to view analysis.
-                    </p>
-                  </div>
-                </div>
-              ) : !analysisData ? (
-                <div className="flex justify-center items-center h-64">
-                  <div className="text-center">
-                    <FiBarChart2 className="mx-auto h-12 w-12 text-gray-400" />
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">No analysis performed</h3>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <div className="flex justify-center items-center h-64">
+                      <div className="text-center">
+                        <FiBarChart2 className="mx-auto h-12 w-12 text-gray-400" />
+                        <h3 className="mt-2 text-sm font-medium text-gray-900">No file selected</h3>
+                        <p className="mt-1 text-sm text-gray-500">
+                          Please select a file from the dropdown above to view analysis.
+                        </p>
+                      </div>
+                    </div>
+                  ) : !analysisData ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="text-center">
+                        <FiBarChart2 className="mx-auto h-12 w-12 text-gray-400" />
+                        <h3 className="mt-2 text-sm font-medium text-gray-900">No analysis performed</h3>
+                        <p className="mt-1 text-sm text-gray-500">
                       Click "Analyze" to generate analysis for the selected file.
                     </p>
-                  </div>
-                </div>
-              ) : (
+                      </div>
+                    </div>
+                  ) : (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5 }}
                   className="space-y-6"
                 >
-                  {/* Stats Cards */}
+                          {/* Stats Cards */}
                   {stats.length > 0 && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {stats.map((stat, index) => (
-                        <motion.div
-                          key={index}
+                            {stats.map((stat, index) => (
+                              <motion.div
+                                key={index}
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          transition={{ duration: 0.3, delay: index * 0.1 }}
+                                transition={{ duration: 0.3, delay: index * 0.1 }}
                           className="bg-white p-4 rounded-lg border border-gray-200"
                         >
                           <div className="text-sm font-medium text-gray-500">{stat.title}</div>
                           <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
-                        </motion.div>
-                      ))}
-                    </div>
+                              </motion.div>
+                            ))}
+                          </div>
                   )}
 
-                  {/* Chart */}
+                          {/* Chart */}
                   {chartData && (
                     <div className="bg-white p-6 rounded-lg border border-gray-200">
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Chart Visualization</h3>
-                      <div className="h-80">
+                              <div className="h-80">
                         {selectedChartType === 'bar' && (
-                          <Bar
-                            data={chartData}
-                            options={{
-                              responsive: true,
-                              maintainAspectRatio: false,
-                              plugins: {
-                                legend: {
-                                  position: 'top',
-                                },
-                              },
-                            }}
-                          />
+                                <Bar
+                                  data={chartData}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                      legend: {
+                                        position: 'top',
+                                      },
+                                    },
+                                  }}
+                                />
                         )}
                         {selectedChartType === 'line' && (
-                          <Line
-                            data={chartData}
-                            options={{
-                              responsive: true,
-                              maintainAspectRatio: false,
-                              plugins: {
-                                legend: {
-                                  position: 'top',
-                                },
-                              },
-                            }}
-                          />
+                                <Line
+                                  data={chartData}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                      legend: {
+                                        position: 'top',
+                                      },
+                                    },
+                                  }}
+                                />
                         )}
                         {selectedChartType === 'pie' && (
-                          <Pie
-                            data={chartData}
-                            options={{
-                              responsive: true,
-                              maintainAspectRatio: false,
-                              plugins: {
-                                legend: {
+                                  <Pie
+                                    data={chartData}
+                                    options={{
+                                      responsive: true,
+                                      maintainAspectRatio: false,
+                                      plugins: {
+                                        legend: {
                                   position: 'top',
                                 },
                               },
@@ -528,13 +528,13 @@ const Analysis = () => {
                               plugins: {
                                 legend: {
                                   position: 'top',
-                                },
-                              },
-                            }}
-                          />
+                                        },
+                                      },
+                                    }}
+                                  />
                         )}
-                      </div>
-                    </div>
+                                </div>
+                              </div>
                   )}
 
                   {/* Table */}
@@ -542,20 +542,20 @@ const Analysis = () => {
                     <div className="bg-white p-6 rounded-lg border border-gray-200">
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Data Table</h3>
                       <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
+                                <table className="min-w-full divide-y divide-gray-200">
+                                  <thead className="bg-gray-50">
+                                    <tr>
                               {Object.keys(tableData[0] || {}).map((header) => (
                                 <th
                                   key={header}
                                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                                 >
                                   {header}
-                                </th>
+                                      </th>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
+                                    </tr>
+                                  </thead>
+                                  <tbody className="bg-white divide-y divide-gray-200">
                             {tableData.map((row, index) => (
                               <tr key={index}>
                                 {Object.values(row).map((value, cellIndex) => (
@@ -564,13 +564,13 @@ const Analysis = () => {
                                     className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
                                   >
                                     {typeof value === 'number' ? value.toFixed(2) : value}
-                                  </td>
+                                        </td>
                                 ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                     </div>
                   )}
 
@@ -587,13 +587,13 @@ const Analysis = () => {
                         <option value="jpg">JPG</option>
                         <option value="png">PNG</option>
                       </select>
-                      <button
+                  <button
                         onClick={handleExport}
                         className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                         disabled={isExporting}
                       >
                         {isExporting ? 'Exporting...' : 'Export'}
-                      </button>
+                  </button>
                     </div>
                   </div>
                 </motion.div>

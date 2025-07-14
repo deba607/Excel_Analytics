@@ -16,21 +16,21 @@ const OUTPUTS_DIR = path.join(__dirname, '../output');
  * Process Excel file
  */
 async function processExcelFile(filePath) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(filePath);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(filePath);
   const worksheet = workbook.getWorksheet(1);
   
   const data = [];
-  worksheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return; // Skip header row
-    
-    const rowData = {};
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return; // Skip header row
+      
+      const rowData = {};
     row.eachCell((cell, colNumber) => {
       const header = worksheet.getRow(1).getCell(colNumber).value;
-      if (header) {
-        rowData[header] = cell.value;
-      }
-    });
+        if (header) {
+          rowData[header] = cell.value;
+        }
+      });
     if (Object.keys(rowData).length > 0) {
       data.push(rowData);
     }
@@ -43,12 +43,12 @@ async function processExcelFile(filePath) {
  * Process CSV file
  */
 async function processCsvFile(filePath) {
-  const fileContent = await fs.readFile(filePath, 'utf-8');
-  return parse(fileContent, {
-    columns: true,
-    skip_empty_lines: true,
+    const fileContent = await fs.readFile(filePath, 'utf-8');
+    return parse(fileContent, {
+      columns: true,
+      skip_empty_lines: true,
     trim: true
-  });
+    });
 }
 
 /**
@@ -57,7 +57,7 @@ async function processCsvFile(filePath) {
 async function processJsonFile(filePath) {
   const fileContent = await fs.readFile(filePath, 'utf-8');
   const data = JSON.parse(fileContent);
-  return Array.isArray(data) ? data : [data];
+    return Array.isArray(data) ? data : [data];
 }
 
 /**
@@ -66,16 +66,16 @@ async function processJsonFile(filePath) {
 async function processFile(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   
-  switch (ext) {
-    case '.xlsx':
-    case '.xls':
+    switch (ext) {
+      case '.xlsx':
+      case '.xls':
       return await processExcelFile(filePath);
-    case '.csv':
+      case '.csv':
       return await processCsvFile(filePath);
-    case '.json':
+      case '.json':
       return await processJsonFile(filePath);
-    default:
-      throw new Error(`Unsupported file format: ${ext}`);
+      default:
+        throw new Error(`Unsupported file format: ${ext}`);
   }
 }
 
@@ -251,8 +251,8 @@ exports.getAnalysis = async (req, res) => {
     // Generate basic statistics
     const stats = generateBasicStats(data);
 
-    return res.status(200).json({
-      success: true,
+        return res.status(200).json({
+          success: true,
       data: {
         totalRows: stats.count,
         totalColumns: stats.columns.length,
@@ -356,7 +356,7 @@ exports.generateChart = async (req, res) => {
     // Validate axes exist in data
     const columns = Object.keys(data[0]);
     if (!columns.includes(xAxis) || !columns.includes(yAxis)) {
-      return res.status(400).json({
+          return res.status(400).json({
         success: false,
         message: 'Selected axes do not exist in the data',
         errorType: 'invalid_axes'
@@ -401,7 +401,7 @@ exports.generateChart = async (req, res) => {
       // Continue even if saving fails
     }
 
-    return res.status(200).json({
+      return res.status(200).json({
       success: true,
       data: {
         chartImagePath: chartImagePath,
@@ -528,8 +528,8 @@ exports.exportAnalysis = async (req, res) => {
         await sharp(resolvedPath).metadata();
       } catch (imgErr) {
         console.error('[ExportAnalysis] File is not a valid image:', resolvedPath, imgErr);
-        return res.status(400).json({
-          success: false,
+            return res.status(400).json({
+                success: false,
           message: 'Export file is not a valid image.'
         });
       }
@@ -544,7 +544,7 @@ exports.exportAnalysis = async (req, res) => {
     } else {
       console.log('[ExportAnalysis] Unsupported export format:', format);
       return res.status(400).json({
-        success: false,
+                success: false,
         message: 'Unsupported export format. Only PDF, JPG, and PNG are allowed.'
       });
     }
@@ -568,7 +568,7 @@ exports.exportAnalysis = async (req, res) => {
       } catch (pdfErr) {
         console.error('[ExportAnalysis] Error generating PDF:', pdfErr);
         return res.status(500).json({
-          success: false,
+                success: false,
           message: 'Error generating PDF: ' + pdfErr.message
         });
       }
@@ -582,7 +582,7 @@ exports.exportAnalysis = async (req, res) => {
           console.error('[ExportAnalysis] Sharp stream error:', err);
           if (!res.headersSent) {
             res.status(500).json({
-              success: false,
+                success: false,
               message: 'Error converting image: ' + err.message
             });
           }
@@ -592,24 +592,24 @@ exports.exportAnalysis = async (req, res) => {
         console.error('[ExportAnalysis] Error converting image:', err);
         if (!res.headersSent) {
           return res.status(500).json({
-            success: false,
+                success: false,
             message: 'Error converting image: ' + err.message
           });
         }
       }
     } else {
-      return res.status(400).json({
-        success: false,
+                    return res.status(400).json({
+                        success: false,
         message: 'Unsupported export format.'
-      });
-    }
+                    });
+            }
   } catch (error) {
     console.error('[Export Analysis] Unexpected error:', error);
-    return res.status(500).json({
-      success: false,
+            return res.status(500).json({
+                success: false,
       message: 'Internal server error: ' + error.message
-    });
-  }
+        });
+    }
 };
 
 /**

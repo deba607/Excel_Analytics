@@ -42,7 +42,7 @@ const Login = () => {
       if (user && user.role === 'admin') {
         navigate('/admin', { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+      navigate('/dashboard', { replace: true });
       }
     }
   }, [isLoggedIn, navigate]);
@@ -146,24 +146,24 @@ const Login = () => {
   };
 
   const handleVerifyOTP = async () => {
-    if (!otp.trim()) {
-      setErrors(prev => ({ ...prev, otp: 'Please enter the OTP' }));
-      return;
-    }
+  if (!otp.trim()) {
+    setErrors(prev => ({ ...prev, otp: 'Please enter the OTP' }));
+    return;
+  }
 
-    setIsLoading(prev => ({ ...prev, verify: true }));
-    try {
+  setIsLoading(prev => ({ ...prev, verify: true }));
+  try {
       const response = await fetch(`${getApiUrl()}/verify-login-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          otp: otp.trim(),
-          password: formData.password
-        }),
-      });
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: formData.email,
+        otp: otp.trim(),
+        password: formData.password
+      }),
+    });
 
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
@@ -171,42 +171,42 @@ const Login = () => {
         throw new Error('Server returned non-JSON response: ' + text);
       }
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to verify OTP');
-      }
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to verify OTP');
+    }
 
-      // Store the token in localStorage and auth context
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('userEmail', formData.email);
+    // Store the token in localStorage and auth context
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('userEmail', formData.email);
       localStorage.setItem('role', role);
-      setToken(data.token);
-      storeuserEmailLS(formData.email);
-      setuserEmail(formData.email);
+    setToken(data.token);
+    storeuserEmailLS(formData.email);
+    setuserEmail(formData.email);
       setUser({ email: formData.email, role });
       if (role === 'admin') {
         // Optionally store adminEmail for legacy code
         setadminEmail && setadminEmail(formData.email);
         storeadminEmailLS && storeadminEmailLS(formData.email);
       }
-      setOtpVerified(true);
-      toast.success('Login successful!');
+    setOtpVerified(true);
+    toast.success('Login successful!');
       // Redirect based on role
       if (role === 'admin') {
         navigate('/admin', { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+    navigate('/dashboard', { replace: true });
       }
-      setFormData({ email: '', password: '' });
-    } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to verify OTP';
-      setErrors(prev => ({ ...prev, otp: errorMessage }));
-      toast.error(errorMessage);
-    } finally {
-      setIsLoading(prev => ({ ...prev, verify: false }));
-    }
-  };
+    setFormData({ email: '', password: '' });
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to verify OTP';
+    setErrors(prev => ({ ...prev, otp: errorMessage }));
+    toast.error(errorMessage);
+  } finally {
+    setIsLoading(prev => ({ ...prev, verify: false }));
+  }
+};
 
   const handleResendOTP = async () => {
     if (countdown > 0) return;
@@ -774,7 +774,7 @@ const Login = () => {
                 </div>
               </form>
             </>
-          )}
+            )}
         </div>
       </div>
     );

@@ -439,7 +439,7 @@ const Pricing = () => {
                     }`}>
                       {plan.popular && <FaStar className="w-3 h-3 mr-1" />}
                       {plan.badge}
-                    </span>
+                  </span>
                   </motion.div>
                 )}
 
@@ -451,21 +451,21 @@ const Pricing = () => {
                 >
                   <div className={plan.iconColor}>
                     {plan.icon}
-                  </div>
+                </div>
                 </motion.div>
               
-                <div className="flex-1">
+              <div className="flex-1">
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
                   
                   {/* Price */}
                   <div className="mb-4">
-                    {plan.price === 0 ? (
+                {plan.price === 0 ? (
                       <div className="flex items-baseline">
                         <span className="text-5xl font-extrabold tracking-tight bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                           Free
                         </span>
                       </div>
-                    ) : plan.price === 'Custom' ? (
+                ) : plan.price === 'Custom' ? (
                       <div className="flex items-baseline">
                         <span className="text-5xl font-extrabold tracking-tight bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
                           Custom
@@ -485,7 +485,7 @@ const Pricing = () => {
                   
                   {/* Features */}
                   <ul className="space-y-4 mb-8">
-                    {plan.features.map((feature, i) => (
+                  {plan.features.map((feature, i) => (
                       <motion.li 
                         key={i} 
                         className="flex items-start"
@@ -498,9 +498,9 @@ const Pricing = () => {
                         </div>
                         <span className="text-gray-700 leading-relaxed">{feature}</span>
                       </motion.li>
-                    ))}
-                  </ul>
-                </div>
+                  ))}
+                </ul>
+              </div>
 
                 {/* CTA Button */}
                 <div className="mt-auto">
@@ -519,12 +519,12 @@ const Pricing = () => {
                         initial={false}
                       />
                       <span className="relative z-10 flex items-center justify-center">
-                        {plan.buttonText}
+                  {plan.buttonText}
                         {plan.popular && <FaRocket className="ml-2 w-4 h-4" />}
                       </span>
                     </motion.button>
-                  </Link>
-                </div>
+                </Link>
+              </div>
 
                 {/* Hover Effect Overlay */}
                 <motion.div
