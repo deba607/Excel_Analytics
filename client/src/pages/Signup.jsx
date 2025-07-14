@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaEnvelope, FaLock, FaUser, FaKey, FaArrowLeft, FaCheckCircle } from 'react-icons/fa';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { motion } from 'framer-motion';
 
 const API_URL = 'http://localhost:8000/api/auth';
 
@@ -200,39 +201,29 @@ const Signup = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-18 text-center text-3xl font-extrabold text-gray-900">
-          {step === 1 ? 'Create your account' : 'Verify your email'}
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          {step === 1 
-            ? 'Enter your details to get started'
-            : `We've sent a verification code to ${formData.email}`
-          }
-        </p>
+    <div className="min-h-screen w-full flex flex-col justify-center items-center relative overflow-hidden bg-gradient-to-br from-teal-400 via-emerald-400 to-lime-200 animate-gradient-move">
+      {/* Animated background (example: animated waves) */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <svg className="absolute bottom-0 left-0 w-full h-64 opacity-30 animate-wave-move" viewBox="0 0 1440 320"><path fill="#fff" fillOpacity="1" d="M0,224L48,202.7C96,181,192,139,288,144C384,149,480,203,576,197.3C672,192,768,128,864,128C960,128,1056,192,1152,197.3C1248,203,1344,149,1392,122.7L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>
       </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {serverError && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700">{serverError}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <form className="space-y-6" onSubmit={step === 1 ? handleGetOTP : handleSubmit}>
+      <motion.div
+        className="relative z-10 w-full max-w-md bg-white bg-opacity-90 rounded-2xl shadow-2xl p-8 mt-10"
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 120 }}
+      >
+        <div className="flex justify-center mb-4">
+          <img src="/OIMZ3J0.svg" alt="Logo" className="w-16 h-16 rounded-full shadow-lg bg-white p-2" />
+        </div>
+        <h2 className="text-3xl font-extrabold text-center text-teal-700 mb-2">
+          Create your account
+        </h2>
+        <div>
+          <form onSubmit={step === 1 ? handleGetOTP : handleSubmit} className="space-y-6">
             {step === 1 ? (
               <>
+                {/* Name, Email, Password, Confirm Password fields */}
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700">
                     Full Name
@@ -247,7 +238,7 @@ const Signup = () => {
                       type="text"
                       value={formData.name}
                       onChange={handleChange}
-                      className={`block w-full pl-10 pr-3 py-2 border ${errors.name ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500'} rounded-md`}
+                      className={`block w-full pl-10 pr-3 py-2 border ${errors.name ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md`}
                       placeholder="John Doe"
                       disabled={otpSent}
                     />
@@ -270,7 +261,7 @@ const Signup = () => {
                       autoComplete="email"
                       value={formData.email}
                       onChange={handleChange}
-                      className={`block w-full pl-10 pr-3 py-2 border ${errors.email ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500'} rounded-md`}
+                      className={`block w-full pl-10 pr-3 py-2 border ${errors.email ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md`}
                       placeholder="you@example.com"
                       disabled={otpSent}
                     />
@@ -293,7 +284,7 @@ const Signup = () => {
                       autoComplete="new-password"
                       value={formData.password}
                       onChange={handleChange}
-                      className={`block w-full pl-10 pr-3 py-2 border ${errors.password ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500'} rounded-md`}
+                      className={`block w-full pl-10 pr-3 py-2 border ${errors.password ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md`}
                       placeholder="••••••••"
                       disabled={otpSent}
                     />
@@ -316,7 +307,7 @@ const Signup = () => {
                       autoComplete="new-password"
                       value={formData.confirmPassword}
                       onChange={handleChange}
-                      className={`block w-full pl-10 pr-3 py-2 border ${errors.confirmPassword ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500'} rounded-md`}
+                      className={`block w-full pl-10 pr-3 py-2 border ${errors.confirmPassword ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md`}
                       placeholder="••••••••"
                       disabled={otpSent}
                     />
@@ -341,7 +332,7 @@ const Signup = () => {
                   <button
                     type="submit"
                     disabled={otpSending}
-                    className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${otpSending ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                    className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${otpSending ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
                   >
                     {otpSending ? 'Sending OTP...' : 'Get OTP'}
                   </button>
@@ -370,7 +361,7 @@ const Signup = () => {
                       maxLength={6}
                       value={otp}
                       onChange={handleOtpChange}
-                      className="flex-1 min-w-0 block w-full px-4 py-3 text-center text-lg border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 min-w-0 block w-full px-4 py-3 text-center text-lg border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
                       placeholder="000000"
                       disabled={otpVerified}
                     />
@@ -379,7 +370,7 @@ const Signup = () => {
                         type="button"
                         onClick={handleVerifyOTP}
                         disabled={verifying || otp.length !== 6}
-                        className={`ml-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${verifying || otp.length !== 6 ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                        className={`ml-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${verifying || otp.length !== 6 ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
                       >
                         {verifying ? 'Verifying...' : 'Verify'}
                       </button>
@@ -399,7 +390,7 @@ const Signup = () => {
                     <button
                       type="button"
                       onClick={() => setStep(1)}
-                      className="font-medium text-blue-600 hover:text-blue-500 focus:outline-none"
+                      className="font-medium text-emerald-600 hover:text-emerald-500 focus:outline-none"
                     >
                       <FaArrowLeft className="inline mr-1" /> Back
                     </button>
@@ -409,7 +400,7 @@ const Signup = () => {
                       type="button"
                       onClick={resendOTP}
                       disabled={countdown > 0 || otpSending}
-                      className="font-medium text-blue-600 hover:text-blue-500 focus:outline-none disabled:text-gray-400"
+                      className="font-medium text-emerald-600 hover:text-emerald-500 focus:outline-none disabled:text-gray-400"
                     >
                       {otpSending 
                         ? 'Sending...' 
@@ -432,7 +423,7 @@ const Signup = () => {
               </div>
             )}
           </form>
-
+          {/* Already have an account? */}
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
@@ -444,19 +435,36 @@ const Signup = () => {
                 </span>
               </div>
             </div>
-
             <div className="mt-6">
               <button
                 type="button"
                 onClick={() => navigate('/login')}
-                className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
               >
                 Sign in
               </button>
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
+      <style>{`
+        @keyframes gradient-move {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        .animate-gradient-move {
+          background-size: 200% 200%;
+          animation: gradient-move 8s ease-in-out infinite;
+        }
+        @keyframes wave-move {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-100px); }
+        }
+        .animate-wave-move {
+          animation: wave-move 6s linear infinite alternate;
+        }
+      `}</style>
     </div>
   );
 };

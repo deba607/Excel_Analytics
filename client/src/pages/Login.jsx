@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { FaEnvelope, FaLock, FaArrowLeft, FaCheckCircle, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../store/auth';
+import { motion } from 'framer-motion';
 
 const Login = () => {
   // Authentication
@@ -424,7 +425,7 @@ const Login = () => {
           disabled={isLoading.login || isLoading.verify || isLoading.resend}
           className={`block w-full pl-10 pr-3 py-2 border ${
             errors.email ? 'border-red-300 text-red-900 placeholder-red-300' : 'border-gray-300'
-          } rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50`}
+          } rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-50`}
           placeholder="you@example.com"
         />
       </div>
@@ -441,7 +442,7 @@ const Login = () => {
         <button
           type="button"
           onClick={toggleForgotPassword}
-          className="text-sm font-medium text-blue-600 hover:text-blue-500"
+          className="text-sm font-medium text-emerald-600 hover:text-emerald-500"
           disabled={isLoading.login}
         >
           Forgot password?
@@ -461,7 +462,7 @@ const Login = () => {
           disabled={isLoading.login || isLoading.verify || isLoading.resend}
           className={`block w-full pl-10 pr-10 py-2 border ${
             errors.password ? 'border-red-300 text-red-900 placeholder-red-300' : 'border-gray-300'
-          } rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50`}
+          } rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-50`}
           placeholder="••••••••"
         />
         <button
@@ -497,7 +498,7 @@ const Login = () => {
           value={otp}
           onChange={handleOtpChange}
           disabled={otpVerified || isLoading.verify || isLoading.resend}
-          className="flex-1 min-w-0 block w-full px-4 py-3 text-center text-lg border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
+          className="flex-1 min-w-0 block w-full px-4 py-3 text-center text-lg border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-50"
           placeholder="000000"
         />
         {!otpVerified && (
@@ -506,8 +507,8 @@ const Login = () => {
             onClick={handleSubmit}
             disabled={isLoading.verify || otp.length !== 6}
             className={`ml-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
-              isLoading.verify || otp.length !== 6 ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
-            } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+              isLoading.verify || otp.length !== 6 ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'
+            } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
           >
             {isLoading.verify ? 'Verifying...' : 'Verify'}
           </button>
@@ -528,7 +529,7 @@ const Login = () => {
       <button
         type="button"
         onClick={() => setStep(1)}
-        className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-500 disabled:text-gray-400"
+        className="inline-flex items-center text-sm font-medium text-emerald-600 hover:text-emerald-500 disabled:text-gray-400"
         disabled={isLoading.verify || isLoading.resend}
       >
         <FaArrowLeft className="mr-1" /> Back
@@ -537,7 +538,7 @@ const Login = () => {
         type="button"
         onClick={handleResendOTP}
         disabled={countdown > 0 || isLoading.resend}
-        className="text-sm font-medium text-blue-600 hover:text-blue-500 disabled:text-gray-400"
+        className="text-sm font-medium text-emerald-600 hover:text-emerald-500 disabled:text-gray-400"
       >
         {isLoading.resend ? 'Sending...' : countdown > 0 ? `Resend in ${countdown}s` : 'Resend OTP'}
       </button>
@@ -549,8 +550,8 @@ const Login = () => {
       type="submit"
       disabled={loading}
       className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-        loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
-      } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+        loading ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'
+      } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
     >
       {loading ? 'Processing...' : text}
     </button>
@@ -613,7 +614,7 @@ const Login = () => {
                   <button
                     type="button"
                     onClick={toggleForgotPassword}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-500"
+                    className="text-sm font-medium text-emerald-600 hover:text-emerald-500"
                   >
                     Back to login
                   </button>
@@ -621,8 +622,8 @@ const Login = () => {
                     type="submit"
                     disabled={isLoading.login}
                     className={`px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white ${
-                      isLoading.login ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
-                    } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                      isLoading.login ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'
+                    } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
                   >
                     {isLoading.login ? 'Sending...' : 'Send OTP'}
                   </button>
@@ -652,7 +653,7 @@ const Login = () => {
                     disabled={isLoading.verify}
                     className={`block w-full px-3 py-2 border ${
                       errors.resetOtp ? 'border-red-300 text-red-900 placeholder-red-300' : 'border-gray-300'
-                    } rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50`}
+                    } rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-50`}
                     placeholder="000000"
                     maxLength={6}
                   />
@@ -662,7 +663,7 @@ const Login = () => {
                   <button
                     type="button"
                     onClick={() => setForgotPasswordStep(1)}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-500"
+                    className="text-sm font-medium text-emerald-600 hover:text-emerald-500"
                   >
                     Back
                   </button>
@@ -670,8 +671,8 @@ const Login = () => {
                     type="submit"
                     disabled={isLoading.verify}
                     className={`px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white ${
-                      isLoading.verify ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
-                    } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                      isLoading.verify ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'
+                    } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
                   >
                     {isLoading.verify ? 'Verifying...' : 'Verify OTP'}
                   </button>
@@ -700,7 +701,7 @@ const Login = () => {
                       disabled={isLoading.login}
                       className={`block w-full pl-10 pr-10 py-2 border ${
                         errors.newPassword ? 'border-red-300 text-red-900 placeholder-red-300' : 'border-gray-300'
-                      } rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50`}
+                      } rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-50`}
                       placeholder="••••••••"
                     />
                     <button
@@ -735,7 +736,7 @@ const Login = () => {
                       disabled={isLoading.login}
                       className={`block w-full pl-10 pr-10 py-2 border ${
                         errors.confirmPassword ? 'border-red-300 text-red-900 placeholder-red-300' : 'border-gray-300'
-                      } rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50`}
+                      } rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-50`}
                       placeholder="••••••••"
                     />
                     <button
@@ -758,7 +759,7 @@ const Login = () => {
                   <button
                     type="button"
                     onClick={() => setForgotPasswordStep(2)}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-500"
+                    className="text-sm font-medium text-emerald-600 hover:text-emerald-500"
                   >
                     Back
                   </button>
@@ -766,8 +767,8 @@ const Login = () => {
                     type="submit"
                     disabled={isLoading.login}
                     className={`px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white ${
-                      isLoading.login ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
-                    } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                      isLoading.login ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'
+                    } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
                   >
                     {isLoading.login ? 'Resetting...' : 'Reset Password'}
                   </button>
@@ -782,16 +783,29 @@ const Login = () => {
 
   // Main Render
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-14 text-center text-3xl font-extrabold text-gray-900">
+    <div className="min-h-screen w-full flex flex-col justify-center items-center relative overflow-hidden bg-gradient-to-br from-teal-400 via-emerald-400 to-lime-200 animate-gradient-move">
+      {/* Animated background (example: animated waves) */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <svg className="absolute bottom-0 left-0 w-full h-64 opacity-30 animate-wave-move" viewBox="0 0 1440 320"><path fill="#fff" fillOpacity="1" d="M0,224L48,202.7C96,181,192,139,288,144C384,149,480,203,576,197.3C672,192,768,128,864,128C960,128,1056,192,1152,197.3C1248,203,1344,149,1392,122.7L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>
+      </div>
+      <motion.div
+        className="relative z-10 w-full max-w-md bg-white bg-opacity-90 rounded-2xl shadow-2xl p-8 mt-10"
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 120 }}
+      >
+        <div className="flex justify-center mb-4">
+          <img src="/OIMZ3J0.svg" alt="Logo" className="w-16 h-16 rounded-full shadow-lg bg-white p-2" />
+        </div>
+        <h2 className="text-3xl font-extrabold text-center text-teal-700 mb-2">
           {step === 1 ? 'Sign in to your account' : 'Verify your email'}
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
+        <p className="text-center text-sm text-gray-600 mb-6">
           {step === 1 ? (
             <>
               Or{' '}
-              <Link to="/signup" className="font-medium text-blue-600 hover:text-blue-500">
+              <Link to="/signup" className="font-medium text-emerald-600 hover:text-emerald-500">
                 create a new account
               </Link>
             </>
@@ -799,46 +813,65 @@ const Login = () => {
             `Enter the verification code sent to ${formData.email}`
           )}
         </p>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {step === 1 ? (
-            <>
+        <div>
+          <div>
+            {step === 1 ? (
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="mb-4">
                   <label htmlFor="role" className="block text-sm font-medium text-gray-700">Login as</label>
-                  <select
-                    id="role"
-                    name="role"
-                    value={role}
-                    onChange={e => setRole(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  >
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                  <div className="relative mt-1">
+                    <select
+                      id="role"
+                      name="role"
+                      value={role}
+                      onChange={e => setRole(e.target.value)}
+                      className="block w-full appearance-none rounded-lg border border-emerald-300 bg-white py-2 px-4 pr-10 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-500 text-gray-700 transition"
+                    >
+                      <option value="user">User</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                      <svg className="h-5 w-5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.585l3.71-3.355a.75.75 0 111.02 1.1l-4.25 3.85a.75.75 0 01-1.02 0l-4.25-3.85a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
+                    </span>
+                  </div>
                 </div>
                 {renderEmailField()}
                 {renderPasswordField()}
                 {renderSubmitButton('Sign in with OTP', isLoading.login)}
               </form>
-              {renderSocialLogin()}
-            </>
-          ) : (
-            <div className="space-y-6">
-              <div className="text-center">
-                <p className="text-sm text-gray-600">
-                  We've sent a 6-digit code to <span className="font-medium">{formData.email}</span>
-                </p>
+            ) : (
+              <div className="space-y-6">
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">
+                    We've sent a 6-digit code to <span className="font-medium">{formData.email}</span>
+                  </p>
+                </div>
+                {renderOtpField()}
+                {renderOtpActions()}
               </div>
-              {renderOtpField()}
-              {renderOtpActions()}
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
-      {renderForgotPasswordForm()}
+        {renderForgotPasswordForm()}
+      </motion.div>
+      <style>{`
+        @keyframes gradient-move {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        .animate-gradient-move {
+          background-size: 200% 200%;
+          animation: gradient-move 8s ease-in-out infinite;
+        }
+        @keyframes wave-move {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-100px); }
+        }
+        .animate-wave-move {
+          animation: wave-move 6s linear infinite alternate;
+        }
+      `}</style>
     </div>
   );
 };

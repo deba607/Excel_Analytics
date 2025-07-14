@@ -386,69 +386,87 @@ const AdminDashboard = () => {
         Add Admin
       </button>
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md relative">
-            <button
-              className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-2xl"
-              onClick={() => { setShowModal(false); setMessage(null); setError(null); }}
-              aria-label="Close"
+        <AnimatePresence>
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-gradient-to-br from-blue-50 via-purple-50 to-white rounded-2xl shadow-2xl p-8 w-full max-w-md relative"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 180, damping: 18 }}
             >
-              &times;
-            </button>
-            <h3 className="text-xl font-bold mb-4 text-blue-700">Add New Admin</h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <input
-                type="text"
-                name="name"
-                placeholder="Name"
-                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-400"
-                value={form.name}
-                onChange={handleChange}
-                required
-              />
-              <input
-                type="email"
-                name="email"
-                placeholder="Email"
-                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-400"
-                value={form.email}
-                onChange={handleChange}
-                required
-              />
-              <input
-                type="password"
-                name="password"
-                placeholder="Password"
-                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-400"
-                value={form.password}
-                onChange={handleChange}
-                required
-                minLength={8}
-                maxLength={16}
-              />
-              <input
-                type="password"
-                name="confirmPassword"
-                placeholder="Confirm Password"
-                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-400"
-                value={form.confirmPassword}
-                onChange={handleChange}
-                required
-                minLength={8}
-                maxLength={16}
-              />
-              {error && <div className="text-red-600 text-sm">{error}</div>}
-              {message && <div className="text-green-600 text-sm">{message}</div>}
               <button
-                type="submit"
-                className="w-full bg-blue-700 text-white py-2 rounded font-semibold hover:bg-blue-800 transition disabled:opacity-50"
-                disabled={loading}
+                className="absolute top-2 right-2 text-gray-400 hover:text-red-500 text-2xl transition-colors duration-200"
+                onClick={() => { setShowModal(false); setMessage(null); setError(null); }}
+                aria-label="Close"
               >
-                {loading ? 'Adding...' : 'Add Admin'}
+                &times;
               </button>
-            </form>
-          </div>
-        </div>
+              <div className="flex items-center justify-center mb-2">
+                <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-600 text-2xl shadow">
+                  <FaUsers />
+                </span>
+              </div>
+              <h3 className="text-2xl font-bold mb-4 text-center text-blue-700">Add New Admin</h3>
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Name"
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition"
+                  value={form.name}
+                  onChange={handleChange}
+                  required
+                />
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="Email"
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition"
+                  value={form.email}
+                  onChange={handleChange}
+                  required
+                />
+                <input
+                  type="password"
+                  name="password"
+                  placeholder="Password"
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition"
+                  value={form.password}
+                  onChange={handleChange}
+                  required
+                  minLength={8}
+                  maxLength={16}
+                />
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  placeholder="Confirm Password"
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition"
+                  value={form.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  minLength={8}
+                  maxLength={16}
+                />
+                {error && <div className="text-red-600 text-sm text-center">{error}</div>}
+                {message && <div className="text-green-600 text-sm text-center">{message}</div>}
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2 rounded-lg font-semibold shadow hover:from-blue-700 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 mt-2"
+                  disabled={loading}
+                >
+                  {loading ? 'Adding...' : 'Add Admin'}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
       )}
       {/* Users Modal */}
       <AnimatePresence>
@@ -908,7 +926,9 @@ const AdminDashboard = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 80 }}
       >
-        <h2 className="text-3xl font-bold text-center text-blue-700 mb-2">Welcome, Admin!</h2>
+        <h2 className="text-3xl font-bold text-center text-blue-700 mb-2">
+          Welcome, {auth.user?.name ? auth.user.name : 'Admin'}!
+        </h2>
         <p className="text-center text-gray-500 mb-6">Here you can manage users, view system stats, and monitor activity.</p>
         {statsLoading ? (
           <div className="text-center text-gray-400 py-8">Loading stats...</div>

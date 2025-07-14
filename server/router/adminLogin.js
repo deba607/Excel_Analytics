@@ -9,6 +9,9 @@ const { sendOtpEmail } = require('../utils/sendOtpEmail');
 // In-memory store for OTPs (for demo/testing)
 const otpStore = {};
 
+// In-memory store for admin registration OTPs
+const adminRegOtpStore = {};
+
 // Send OTP to admin email
 router.post('/send-login-otp', async (req, res) => {
   const { email, password } = req.body;
@@ -58,6 +61,43 @@ router.post('/verify-login-otp', async (req, res) => {
     res.json({ success: true, token });
   } catch (error) {
     console.error('Error verifying admin OTP:', error);
+    res.status(500).json({ success: false, message: 'Failed to verify OTP' });
+  }
+});
+
+// Send OTP for admin registration
+router.post('/send-admin-otp', async (req, res) => {
+  const { email } = req.body;
+  try {
+    // Check if admin already exists
+    const existingAdmin = await Admin.findOne({ email });
+    if (existingAdmin) {
+      return res.status(400).json({ success: false, message: 'Admin already exists with this email' });
+    }
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    adminRegOtpStore[email] = { otp, expires: Date.now() + 10 * 60 * 1000 }; // 10 min expiry
+    await sendOtpEmail(email, otp);
+    res.json({ success: true, message: 'OTP sent to email!' });
+  } catch (error) {
+    console.error('Error sending admin registration OTP:', error);
+    res.status(500).json({ success: false, message: 'Failed to send OTP' });
+  }
+});
+
+// Verify OTP for admin registration
+router.post('/verify-admin-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  try {
+    const record = adminRegOtpStore[email];
+    if (!record || record.otp !== otp || Date.now() > record.expires) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+    // OTP is valid, delete it
+    delete adminRegOtpStore[email];
+    res.json({ success: true, message: 'OTP verified' });
+  } catch (error) {
+    console.error('Error verifying admin registration OTP:', error);
     res.status(500).json({ success: false, message: 'Failed to verify OTP' });
   }
 });
