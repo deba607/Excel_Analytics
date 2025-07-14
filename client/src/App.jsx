@@ -56,7 +56,7 @@ const AuthDebug = () => {
 
 // Layout Components
 import Navbar from './components/Navbar';
-import Dashboard from './pages/Dashboard';
+import Dashboard from './pages/after_login_pages/Dashboard';
 
 // Public Pages
 import Hero from './components/Hero';
@@ -65,9 +65,11 @@ import Pricing from './components/Pricing';
 import Contact from './components/Contact';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
+import AdminLogin from './pages/AdminLogin';
+import AdminDashboard from './pages/after_admin_login/AdminDashboard';
 
 // Protected Pages
-import Home from './pages/Home';
+import Home from './pages/after_login_pages/Home';
 import Import from './pages/after_login_pages/Import';
 import Analysis from './pages/after_login_pages/Analysis';
 import Report from './pages/after_login_pages/Report';
@@ -167,6 +169,7 @@ function App() {
               />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/admin-login" element={<AdminLogin />} />
             </Route>
           </Route>
 
@@ -192,7 +195,7 @@ function App() {
 
           {/* Admin Routes (Example) */}
           <Route element={<ProtectedRoute requiredRole="admin" />}>
-            <Route path="/admin" element={<div>Admin Dashboard</div>} />
+            <Route path="/admin" element={<AdminDashboard />} />
           </Route>
 
           {/* Error Routes */}

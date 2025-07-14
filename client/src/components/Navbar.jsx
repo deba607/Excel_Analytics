@@ -154,6 +154,22 @@ const Navbar = () => {
                 </motion.button>
               </Link>
             </motion.div>
+            {/* Admin Login Button */}
+            <motion.div variants={item} className="ml-2">
+              <Link to="/admin-login">
+                <motion.button
+                  whileHover={{ scale: 1.05, boxShadow: "0 10px 25px rgba(59, 130, 246, 0.3)" }}
+                  whileTap={{ scale: 0.95 }}
+                  className="relative bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-2.5 rounded-xl font-medium transition-all duration-300 shadow-lg hover:shadow-xl overflow-hidden group"
+                >
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-purple-700 to-blue-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    initial={false}
+                  />
+                  <span className="relative z-10">Admin Login</span>
+                </motion.button>
+              </Link>
+            </motion.div>
           </motion.div>
 
           {/* Mobile menu button */}
@@ -275,6 +291,35 @@ const Navbar = () => {
                     className="w-full block text-center bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-xl font-medium transition-all duration-300 shadow-lg hover:shadow-xl"
                   >
                     Start Free Trial
+                  </motion.button>
+                </Link>
+              </motion.div>
+              {/* Admin Login Button (Mobile) */}
+              <motion.div
+                variants={{
+                  open: {
+                    y: 0,
+                    opacity: 1,
+                    transition: {
+                      y: { stiffness: 1000, velocity: -100 }
+                    }
+                  },
+                  closed: {
+                    y: 20,
+                    opacity: 0,
+                    transition: {
+                      y: { stiffness: 1000 }
+                    }
+                  }
+                }}
+                className="pt-2"
+              >
+                <Link to="/admin-login">
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full block text-center bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-4 rounded-xl font-medium transition-all duration-300 shadow-lg hover:shadow-xl"
+                  >
+                    Admin Login
                   </motion.button>
                 </Link>
               </motion.div>

@@ -22,14 +22,14 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(true);
       // This is where you would typically make an API call to your backend
       // For now, we'll just set the token and user from the credentials
-      const { token, email } = credentials;
+      const { token, email, role } = credentials;
       
       // In a real app, you would verify the token with your backend
       localStorage.setItem("token", token);
       setToken(token);
       
       // Set user data
-      const userData = { email }; // Add other user data as needed
+      const userData = { email, role: role || 'user' }; // Add other user data as needed
       localStorage.setItem("user", JSON.stringify(userData));
       setUser(userData);
       
