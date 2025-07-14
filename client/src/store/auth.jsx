@@ -10,10 +10,20 @@ export const AuthProvider = ({ children }) => {
   const [userEmail, setuserEmail] = useState(localStorage.getItem("userEmail"));
   const [adminEmail, setadminEmail] = useState(localStorage.getItem("adminEmail"));
 
-  const [user, setUser] = useState(() => {
+  const [user, setUserState] = useState(() => {
     const storedUser = localStorage.getItem("user");
     return storedUser ? JSON.parse(storedUser) : null;
   });
+
+  // Always sync setUser to localStorage
+  const setUser = (userObj) => {
+    setUserState(userObj);
+    if (userObj) {
+      localStorage.setItem('user', JSON.stringify(userObj));
+    } else {
+      localStorage.removeItem('user');
+    }
+  };
   const [isLoading, setIsLoading] = useState(false);
 
   // Login function

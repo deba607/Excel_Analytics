@@ -1,6 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { FaUsers, FaFileAlt, FaChartBar, FaCogs } from 'react-icons/fa';
+import { useState } from 'react';
+import axios from 'axios';
 
 const stats = [
   { label: 'Total Users', value: 128, icon: <FaUsers className="text-blue-500 w-6 h-6" /> },
@@ -19,8 +21,115 @@ const cardVariants = {
 };
 
 const AdminDashboard = () => {
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(null);
+  const [error, setError] = useState(null);
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage(null);
+    setError(null);
+    if (!form.name || !form.email || !form.password || !form.confirmPassword) {
+      setError('All fields are required');
+      setLoading(false);
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+    try {
+      const res = await axios.post('/api/auth/register-admin', form);
+      setMessage('Admin added successfully!');
+      setForm({ name: '', email: '', password: '', confirmPassword: '' });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to add admin');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 via-purple-100 to-white py-12 px-4 flex flex-col items-center">
+      <button
+        className="mb-6 px-6 py-2 bg-blue-700 text-white rounded-lg font-semibold shadow hover:bg-blue-800 transition"
+        onClick={() => setShowModal(true)}
+      >
+        Add Admin
+      </button>
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md relative">
+            <button
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-2xl"
+              onClick={() => { setShowModal(false); setMessage(null); setError(null); }}
+              aria-label="Close"
+            >
+              &times;
+            </button>
+            <h3 className="text-xl font-bold mb-4 text-blue-700">Add New Admin</h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <input
+                type="text"
+                name="name"
+                placeholder="Name"
+                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-400"
+                value={form.name}
+                onChange={handleChange}
+                required
+              />
+              <input
+                type="email"
+                name="email"
+                placeholder="Email"
+                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-400"
+                value={form.email}
+                onChange={handleChange}
+                required
+              />
+              <input
+                type="password"
+                name="password"
+                placeholder="Password"
+                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-400"
+                value={form.password}
+                onChange={handleChange}
+                required
+                minLength={8}
+                maxLength={16}
+              />
+              <input
+                type="password"
+                name="confirmPassword"
+                placeholder="Confirm Password"
+                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-400"
+                value={form.confirmPassword}
+                onChange={handleChange}
+                required
+                minLength={8}
+                maxLength={16}
+              />
+              {error && <div className="text-red-600 text-sm">{error}</div>}
+              {message && <div className="text-green-600 text-sm">{message}</div>}
+              <button
+                type="submit"
+                className="w-full bg-blue-700 text-white py-2 rounded font-semibold hover:bg-blue-800 transition disabled:opacity-50"
+                disabled={loading}
+              >
+                {loading ? 'Adding...' : 'Add Admin'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
       <motion.div
         className="w-full max-w-4xl bg-white rounded-2xl shadow-xl p-8 mb-8"
         initial={{ opacity: 0, y: -40 }}

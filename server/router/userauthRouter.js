@@ -12,5 +12,8 @@ router.post('/resend-otp', authController.resendOTP);
 // Registration route
 router.route("/register").post(validate (userValidator), authController.register);
 
+// Admin registration route
+router.post('/register-admin', authController.registerAdmin);
+
 
 module.exports = router;

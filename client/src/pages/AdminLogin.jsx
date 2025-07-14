@@ -9,7 +9,7 @@ const API_URL = 'http://localhost:8000/api/adminLogin';
 
 const AdminLogin = () => {
   // Authentication
-  const { setadminEmail, storeadminEmailLS, setToken } = useAuth();
+  const { setadminEmail, storeadminEmailLS, setToken, setUser } = useAuth();
   const navigate = useNavigate();
 
   // State
@@ -136,6 +136,7 @@ const AdminLogin = () => {
       localStorage.setItem('adminToken', data.token);
       localStorage.setItem('adminEmail', formData.email);
       setToken(data.token);
+      setUser({ email: formData.email, role: 'admin' });
       storeadminEmailLS(formData.email);
       setadminEmail(formData.email);
       setOtpVerified(true);
@@ -183,6 +184,10 @@ const AdminLogin = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-purple-100 to-white py-12 px-4">
+      {/* DEBUG: AdminLogin component is rendering */}
+      <div style={{position: 'absolute', top: 0, left: 0, width: '100%', background: '#fbbf24', color: '#1f2937', textAlign: 'center', zIndex: 9999, fontWeight: 'bold', padding: '4px 0'}}>
+        DEBUG: AdminLogin component is rendering
+      </div>
       <motion.div
         className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8"
         initial="hidden"

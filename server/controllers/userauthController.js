@@ -1,4 +1,5 @@
 const User = require('../models/user-registration');
+const Admin = require('../models/Admin');
 
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
@@ -173,6 +174,39 @@ exports.register = async (req, res) => {
       message: 'Server error during registration',
       error: error.message
     });
+  }
+};
+
+// Register Admin
+exports.registerAdmin = async (req, res) => {
+  try {
+    const { name, email, password, confirmPassword } = req.body;
+    if (!name || !email || !password || !confirmPassword) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+    if (password !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Passwords do not match' });
+    }
+    // Check if admin already exists
+    const existingAdmin = await Admin.findOne({ email });
+    if (existingAdmin) {
+      return res.status(400).json({ success: false, message: 'Admin already exists with this email' });
+    }
+    // Create new admin
+    const admin = new Admin({ name, email, password });
+    await admin.save();
+    const token = admin.generateToken();
+    const adminData = admin.toObject();
+    delete adminData.password;
+    res.status(201).json({
+      success: true,
+      message: 'Admin registration successful',
+      admin: adminData,
+      token
+    });
+  } catch (error) {
+    console.error('Admin registration error:', error);
+    res.status(500).json({ success: false, message: 'Server error during admin registration', error: error.message });
   }
 };
 

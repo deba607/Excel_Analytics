@@ -104,7 +104,8 @@ const PublicRoute = () => {
   const location = useLocation();
 
   return useMemo(() => {
-    if (isLoggedIn) {
+    // Allow access to /admin-login and /login even if logged in
+    if (isLoggedIn && location.pathname !== '/admin-login' && location.pathname !== '/login') {
       const from = location.state?.from?.pathname || '/dashboard';
       return <Navigate to={from} replace />;
     }
@@ -145,6 +146,7 @@ function App() {
         <Routes>
           {/* Test Route */}
           <Route path="/test" element={<div>Test route working!</div>} />
+          <Route path="/test-admin-login" element={<div style={{background:'#fbbf24',color:'#1f2937',padding:'16px',fontWeight:'bold',textAlign:'center'}}>TEST: /test-admin-login route is working!</div>} />
           <Route path="/auth-test" element={
             <div className="p-8">
               <h1>Auth Test Page</h1>
