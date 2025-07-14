@@ -6,6 +6,7 @@ import axios from 'axios';
 import { useAuth } from '../../store/auth';
 import { AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 const cardVariants = {
   hidden: { opacity: 0, y: 40 },
@@ -16,8 +17,11 @@ const cardVariants = {
   })
 };
 
+const BACKEND_URL = 'http://localhost:8000'; // Change this if your backend runs elsewhere
+
 const AdminDashboard = () => {
   const auth = useAuth();
+  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
@@ -49,6 +53,14 @@ const AdminDashboard = () => {
   const [filterYAxis, setFilterYAxis] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [filterFilesUser, setFilterFilesUser] = useState('');
+  const [editUser, setEditUser] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [removeLoading, setRemoveLoading] = useState('');
+  const [showFileOverviewModal, setShowFileOverviewModal] = useState(false);
+  const [fileOverviewUser, setFileOverviewUser] = useState('');
+  const [fileOverviewFileId, setFileOverviewFileId] = useState('');
 
   // Helper function to format file size
   const formatFileSize = (bytes) => {
@@ -197,6 +209,27 @@ const AdminDashboard = () => {
     }
   };
 
+  // Handler for File Overview button
+  const handleFileOverviewClick = async () => {
+    setShowFileOverviewModal(true);
+    if (files.length === 0) {
+      setFilesLoading(true);
+      setFilesError(null);
+      try {
+        const res = await axios.get('/api/adminLogin/files');
+        if (res.data.success) {
+          setFiles(res.data.files);
+        } else {
+          setFilesError('Failed to fetch files');
+        }
+      } catch (err) {
+        setFilesError('Failed to fetch files');
+      } finally {
+        setFilesLoading(false);
+      }
+    }
+  };
+
   // Download handler for reports
   const handleDownload = async (report, format) => {
     setDownloading(prev => ({ ...prev, [report._id]: true }));
@@ -281,8 +314,71 @@ const AdminDashboard = () => {
   const fileUserEmails = Array.from(new Set(files.map(f => f.user?.email).filter(Boolean)));
   const filteredFiles = files.filter(f => !filterFilesUser || f.user?.email === filterFilesUser);
 
+  const overviewUserEmails = Array.from(new Set(files.map(f => f.user?.email).filter(Boolean)));
+  const overviewFilesForUser = files.filter(f => !fileOverviewUser || f.user?.email === fileOverviewUser);
+  const overviewFileOptions = Array.from(new Set(overviewFilesForUser.map(f => f._id)));
+  const selectedOverviewFile = files.find(f => f._id === fileOverviewFileId);
+
+  // Logout handler
+  const handleLogout = () => {
+    auth.LogoutUser();
+    navigate('/login');
+  };
+
+  const openEditModal = (user) => {
+    setEditUser(user);
+    setEditName(user.name);
+    setEditEmail(user.email);
+  };
+  const closeEditModal = () => {
+    setEditUser(null);
+    setEditName('');
+    setEditEmail('');
+  };
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    try {
+      const res = await axios.patch(`/api/adminLogin/users/${editUser._id}`, { name: editName, email: editEmail });
+      if (res.data.success) {
+        setUsers(users.map(u => u._id === editUser._id ? res.data.user : u));
+        closeEditModal();
+      } else {
+        toast.error(res.data.message || 'Failed to update user');
+      }
+    } catch (err) {
+      toast.error('Failed to update user');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+  const handleRemoveUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to remove this user?')) return;
+    setRemoveLoading(userId);
+    try {
+      const res = await axios.delete(`/api/adminLogin/users/${userId}`);
+      if (res.data.success) {
+        setUsers(users.filter(u => u._id !== userId));
+        toast.success('User removed');
+      } else {
+        toast.error(res.data.message || 'Failed to remove user');
+      }
+    } catch (err) {
+      toast.error('Failed to remove user');
+    } finally {
+      setRemoveLoading('');
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-100 via-purple-100 to-white py-12 px-4 flex flex-col items-center">
+    <div className="min-h-screen bg-gradient-to-br from-blue-100 via-purple-100 to-white py-12 px-4 flex flex-col items-center relative">
+      {/* Logout Button - Top Right */}
+      <button
+        className="absolute top-4 right-4 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold shadow hover:bg-red-700 transition flex items-center gap-2"
+        onClick={handleLogout}
+      >
+        LogOut
+      </button>
       <button
         className="mb-6 px-6 py-2 bg-blue-700 text-white rounded-lg font-semibold shadow hover:bg-blue-800 transition"
         onClick={() => setShowModal(true)}
@@ -399,6 +495,17 @@ const AdminDashboard = () => {
                       <div className="text-gray-600 text-sm mb-1">{user.email}</div>
                       <div className="text-xs text-gray-400">ID: {user._id}</div>
                       {user.isAdmin && <div className="mt-2 px-2 py-1 bg-blue-200 text-blue-800 rounded text-xs font-semibold">Admin</div>}
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          className="px-3 py-1 bg-yellow-500 text-white rounded text-xs font-semibold hover:bg-yellow-600"
+                          onClick={() => openEditModal(user)}
+                        >Edit</button>
+                        <button
+                          className="px-3 py-1 bg-red-600 text-white rounded text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
+                          onClick={() => handleRemoveUser(user._id)}
+                          disabled={removeLoading === user._id}
+                        >{removeLoading === user._id ? 'Removing...' : 'Remove'}</button>
+                      </div>
                     </motion.div>
                   ))}
                 </div>
@@ -407,6 +514,39 @@ const AdminDashboard = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      {editUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md relative">
+            <button
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-2xl"
+              onClick={closeEditModal}
+              aria-label="Close"
+            >&times;</button>
+            <h3 className="text-xl font-bold mb-4 text-blue-700">Edit User</h3>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <input
+                type="text"
+                className="w-full border rounded px-3 py-2"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                required
+              />
+              <input
+                type="email"
+                className="w-full border rounded px-3 py-2"
+                value={editEmail}
+                onChange={e => setEditEmail(e.target.value)}
+                required
+              />
+              <button
+                type="submit"
+                className="w-full bg-blue-700 text-white py-2 rounded font-semibold hover:bg-blue-800 transition disabled:opacity-50"
+                disabled={editLoading}
+              >{editLoading ? 'Saving...' : 'Save Changes'}</button>
+            </form>
+          </div>
+        </div>
+      )}
       {/* Admins Modal */}
       <AnimatePresence>
         {showAdminsModal && (
@@ -700,6 +840,68 @@ const AdminDashboard = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      {showFileOverviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-2xl relative">
+            <button
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-2xl"
+              onClick={() => setShowFileOverviewModal(false)}
+              aria-label="Close"
+            >&times;</button>
+            <h3 className="text-2xl font-bold mb-6 text-purple-700 text-center">File Overview</h3>
+            {filesLoading ? (
+              <div className="text-center text-gray-500 py-8">Loading files...</div>
+            ) : filesError ? (
+              <div className="text-center text-red-500 py-8">{filesError}</div>
+            ) : files.length === 0 ? (
+              <div className="text-center text-gray-400 py-8">No files found.</div>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-4 mb-6">
+                  <select value={fileOverviewUser} onChange={e => { setFileOverviewUser(e.target.value); setFileOverviewFileId(''); }} className="border rounded px-2 py-1">
+                    <option value="">Select User</option>
+                    {overviewUserEmails.map(email => <option key={email} value={email}>{email}</option>)}
+                  </select>
+                  <select value={fileOverviewFileId} onChange={e => setFileOverviewFileId(e.target.value)} className="border rounded px-2 py-1" disabled={!fileOverviewUser}>
+                    <option value="">Select File</option>
+                    {overviewFilesForUser.map(f => (
+                      <option key={f._id} value={f._id}>{f.originalName} ({f.filename})</option>
+                    ))}
+                  </select>
+                </div>
+                {selectedOverviewFile && (
+                  <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl shadow p-6">
+                    <div className="mb-2 text-lg font-bold text-purple-700">File Details</div>
+                    <div className="mb-1"><span className="font-semibold">Original Name:</span> {selectedOverviewFile.originalName}</div>
+                    <div className="mb-1"><span className="font-semibold">Filename:</span> {selectedOverviewFile.filename}</div>
+                    <div className="mb-1"><span className="font-semibold">Size:</span> {formatFileSize(selectedOverviewFile.size)}</div>
+                    <div className="mb-1"><span className="font-semibold">Status:</span> {selectedOverviewFile.status}</div>
+                    <div className="mb-1"><span className="font-semibold">Columns:</span> {selectedOverviewFile.columns && selectedOverviewFile.columns.length > 0 ? selectedOverviewFile.columns.join(', ') : 'N/A'}</div>
+                    <div className="mb-1"><span className="font-semibold">Uploaded By:</span> {selectedOverviewFile.user?.name} ({selectedOverviewFile.user?.email})</div>
+                    <div className="mb-1"><span className="font-semibold">Created At:</span> {new Date(selectedOverviewFile.createdAt).toLocaleString()}</div>
+                    <div className="mb-1"><span className="font-semibold">Path:</span> {selectedOverviewFile.path}</div>
+                    <button
+                      className="mt-4 px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 transition"
+                      onClick={() => {
+                        // Extract only the filename (after last slash or backslash)
+                        let filename = selectedOverviewFile.filename;
+                        if (!filename && selectedOverviewFile.path) {
+                          const parts = selectedOverviewFile.path.split(/[/\\]/);
+                          filename = parts[parts.length - 1];
+                        }
+                        const url = `${BACKEND_URL}/uploads/${filename}`;
+                        window.open(url, '_blank');
+                      }}
+                    >
+                      Open File
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <motion.div
         className="w-full max-w-4xl bg-white rounded-2xl shadow-xl p-8 mb-8"
         initial={{ opacity: 0, y: -40 }}
@@ -744,16 +946,18 @@ const AdminDashboard = () => {
         }}
       >
         <motion.div
-          className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center hover:shadow-2xl transition-shadow duration-300"
+          className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center hover:shadow-2xl transition-shadow duration-300 cursor-pointer"
           whileHover={{ scale: 1.03 }}
+          onClick={handleTotalUsersClick}
         >
           <FaUsers className="text-blue-500 w-8 h-8 mb-2" />
           <div className="font-semibold text-lg mb-1">User Management</div>
           <div className="text-gray-500 text-sm text-center">View, edit, or remove users. Manage admin privileges.</div>
         </motion.div>
         <motion.div
-          className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center hover:shadow-2xl transition-shadow duration-300"
+          className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center hover:shadow-2xl transition-shadow duration-300 cursor-pointer"
           whileHover={{ scale: 1.03 }}
+          onClick={handleFileOverviewClick}
         >
           <FaFileAlt className="text-purple-500 w-8 h-8 mb-2" />
           <div className="font-semibold text-lg mb-1">File Overview</div>

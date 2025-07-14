@@ -95,6 +95,39 @@ router.get('/users', async (req, res) => {
   }
 });
 
+// Update user (admin)
+router.patch('/users/:id', async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { name, email },
+      { new: true, runValidators: true }
+    );
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    res.json({ success: true, user: updatedUser });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ success: false, message: 'Failed to update user' });
+  }
+});
+
+// Delete user (admin)
+router.delete('/users/:id', async (req, res) => {
+  try {
+    const deletedUser = await User.findByIdAndDelete(req.params.id);
+    if (!deletedUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    res.json({ success: true, message: 'User deleted' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete user' });
+  }
+});
+
 // Get all admins (for admin dashboard)
 router.get('/admins', async (req, res) => {
   try {
