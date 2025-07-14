@@ -65,8 +65,8 @@ import Pricing from './components/Pricing';
 import Contact from './components/Contact';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
-import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/after_admin_login/AdminDashboard';
+import AuthCallback from './pages/AuthCallback';
 
 // Protected Pages
 import Home from './pages/after_login_pages/Home';
@@ -89,13 +89,9 @@ const ProtectedRoute = ({ children, requiredRole = 'user' }) => {
       return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    // Optional: Add role-based access control
-    if (requiredRole === 'admin' && (!user || user.role !== 'admin')) {
-      return <Navigate to="/unauthorized" replace />;
-    }
-
+    
     return children || <Outlet />;
-  }, [isLoggedIn, user, requiredRole, location, children]);
+  }, [isLoggedIn, user, location, children]);
 };
 
 // Public Route Component (Redirects to dashboard if already authenticated)
@@ -105,7 +101,7 @@ const PublicRoute = () => {
 
   return useMemo(() => {
     // Allow access to /admin-login and /login even if logged in
-    if (isLoggedIn && location.pathname !== '/admin-login' && location.pathname !== '/login') {
+    if (isLoggedIn && location.pathname !== '/login') {
       const from = location.state?.from?.pathname || '/dashboard';
       return <Navigate to={from} replace />;
     }
@@ -171,7 +167,7 @@ function App() {
               />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
-              <Route path="/admin-login" element={<AdminLogin />} />
+              <Route path="/auth-callback" element={<AuthCallback />} />
             </Route>
           </Route>
 

@@ -4,11 +4,15 @@ const cors = require('cors');
 const connectDb = require('./utils/db');
 const { errorHandler } = require('./utils/errorResponse');
 const bodyParser = require('body-parser');
+const session = require('express-session');
+const passport = require('passport');
 const userauthRouter = require('./router/userauthRouter');
 const userauthLoginRouter = require('./router/userauthLogin');
 const userContactRouter = require('./router/userContact');
 const fileRoutes = require('./router/fileRoutes');
 const analysisRoutes = require('./router/analysis');
+const googleAuthRouter = require('./router/googleAuthRouter');
+const adminLoginRouter = require('./router/adminLogin');
 
 const app = express();
 
@@ -22,6 +26,20 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// Session middleware for Google OAuth
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: false, // Set to true in production with HTTPS
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use(express.json());
 app.use(bodyParser.json());
@@ -59,6 +77,10 @@ app.use((req, res, next) => {
 app.use('/api/auth', userauthRouter);
 app.use('/api/authLogin', userauthLoginRouter);
 app.use('/api/contact', userContactRouter);
+app.use('/api/adminLogin', adminLoginRouter);
+
+// Google OAuth routes
+app.use('/api/auth', googleAuthRouter);
 
 // Set static folders
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

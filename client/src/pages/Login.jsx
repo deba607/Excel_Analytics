@@ -4,14 +4,13 @@ import { FaEnvelope, FaLock, FaArrowLeft, FaCheckCircle, FaEye, FaEyeSlash } fro
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../store/auth';
 
-const API_URL = 'http://localhost:8000/api/authLogin';
-
 const Login = () => {
   // Authentication
-  const { setuserEmail, setadminEmail, isLoggedIn, storeadminEmailLS, storeuserEmailLS, setToken } = useAuth();
+  const { setuserEmail, setadminEmail, isLoggedIn, storeadminEmailLS, storeuserEmailLS, setToken, setUser } = useAuth();
   const navigate = useNavigate();
 
   // State
+  const [role, setRole] = useState('user'); // 'user' or 'admin'
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     email: '',
@@ -39,7 +38,12 @@ const Login = () => {
   // Effects
   useEffect(() => {
     if (isLoggedIn) {
-      navigate('/dashboard', { replace: true });
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (user && user.role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     }
   }, [isLoggedIn, navigate]);
 
@@ -102,10 +106,13 @@ const Login = () => {
     }
   };
 
+  // Update API_URL based on role
+  const getApiUrl = () => role === 'admin' ? 'http://localhost:8000/api/adminLogin' : 'http://localhost:8000/api/authLogin';
+
   const handleLogin = async () => {
     setIsLoading(prev => ({ ...prev, login: true }));
     try {
-      const response = await fetch(`${API_URL}/send-login-otp`, {
+      const response = await fetch(`${getApiUrl()}/send-login-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,6 +122,12 @@ const Login = () => {
           password: formData.password
         }),
       });
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error('Server returned non-JSON response: ' + text);
+      }
 
       const data = await response.json();
 
@@ -126,78 +139,93 @@ const Login = () => {
       setCountdown(30);
       toast.success('OTP sent to your email!');
     } catch (error) {
-      throw error;
+      toast.error(error.message);
     } finally {
       setIsLoading(prev => ({ ...prev, login: false }));
     }
   };
 
   const handleVerifyOTP = async () => {
-  if (!otp.trim()) {
-    setErrors(prev => ({ ...prev, otp: 'Please enter the OTP' }));
-    return;
-  }
-
-  setIsLoading(prev => ({ ...prev, verify: true }));
-  try {
-    const response = await fetch(`${API_URL}/verify-login-otp`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: formData.email,
-        otp: otp.trim(),
-        password: formData.password
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to verify OTP');
+    if (!otp.trim()) {
+      setErrors(prev => ({ ...prev, otp: 'Please enter the OTP' }));
+      return;
     }
 
-    // Store the token in localStorage and auth context
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('userEmail', formData.email);
-    
-    // Update auth context with user data
-    setToken(data.token);
-    storeuserEmailLS(formData.email);
-    setuserEmail(formData.email);
-    
-    setOtpVerified(true);
-    toast.success('Login successful!');
-    
-    // Navigate to dashboard
-    navigate('/dashboard', { replace: true });
-    
-    // Reset form
-    setFormData({ email: '', password: '' });
+    setIsLoading(prev => ({ ...prev, verify: true }));
+    try {
+      const response = await fetch(`${getApiUrl()}/verify-login-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          otp: otp.trim(),
+          password: formData.password
+        }),
+      });
 
-    
-  } catch (error) {
-    const errorMessage = error.response?.data?.message || error.message || 'Failed to verify OTP';
-    setErrors(prev => ({ ...prev, otp: errorMessage }));
-    toast.error(errorMessage);
-  } finally {
-    setIsLoading(prev => ({ ...prev, verify: false }));
-  }
-};
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error('Server returned non-JSON response: ' + text);
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to verify OTP');
+      }
+
+      // Store the token in localStorage and auth context
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userEmail', formData.email);
+      localStorage.setItem('role', role);
+      setToken(data.token);
+      storeuserEmailLS(formData.email);
+      setuserEmail(formData.email);
+      setUser({ email: formData.email, role });
+      if (role === 'admin') {
+        // Optionally store adminEmail for legacy code
+        setadminEmail && setadminEmail(formData.email);
+        storeadminEmailLS && storeadminEmailLS(formData.email);
+      }
+      setOtpVerified(true);
+      toast.success('Login successful!');
+      // Redirect based on role
+      if (role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+      setFormData({ email: '', password: '' });
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to verify OTP';
+      setErrors(prev => ({ ...prev, otp: errorMessage }));
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(prev => ({ ...prev, verify: false }));
+    }
+  };
 
   const handleResendOTP = async () => {
     if (countdown > 0) return;
     
     setIsLoading(prev => ({ ...prev, resend: true }));
     try {
-      const response = await fetch(`${API_URL}/resend-login-otp`, {
+      const response = await fetch(`${getApiUrl()}/resend-login-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email: formData.email }),
       });
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error('Server returned non-JSON response: ' + text);
+      }
 
       const data = await response.json();
 
@@ -225,13 +253,19 @@ const Login = () => {
     setIsLoading(prev => ({ ...prev, login: true }));
     
     try {
-      const response = await fetch(`${API_URL}/forgot-password`, {
+      const response = await fetch(`${getApiUrl()}/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email: formData.email }),
       });
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error('Server returned non-JSON response: ' + text);
+      }
 
       const data = await response.json();
 
@@ -266,7 +300,7 @@ const Login = () => {
     setIsLoading(prev => ({ ...prev, verify: true }));
     
     try {
-      const response = await fetch(`${API_URL}/verify-reset-otp`, {
+      const response = await fetch(`${getApiUrl()}/verify-reset-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -276,6 +310,12 @@ const Login = () => {
           otp: resetOtp.trim()
         }),
       });
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error('Server returned non-JSON response: ' + text);
+      }
 
       const data = await response.json();
 
@@ -313,7 +353,7 @@ const Login = () => {
     setIsLoading(prev => ({ ...prev, login: true }));
     
     try {
-      const response = await fetch(`${API_URL}/reset-password`, {
+      const response = await fetch(`${getApiUrl()}/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -324,6 +364,12 @@ const Login = () => {
           newPassword: newPassword
         }),
       });
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error('Server returned non-JSON response: ' + text);
+      }
 
       const data = await response.json();
 
@@ -516,14 +562,14 @@ const Login = () => {
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-gray-300"></div>
         </div>
-        <div className="relative flex justify-center text-sm">
+        {/* <div className="relative flex justify-center text-sm">
           <span className="px-2 bg-white text-gray-500">
             Or continue with
           </span>
-        </div>
+        </div> */}
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-3">
+      {/* <div className="mt-6 grid grid-cols-2 gap-3">
         <div>
           <a
             href={`${API_URL}/auth/google`}
@@ -547,7 +593,7 @@ const Login = () => {
             </svg>
           </a>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 
@@ -759,7 +805,20 @@ const Login = () => {
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           {step === 1 ? (
             <>
-              <form className="space-y-6" onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="mb-4">
+                  <label htmlFor="role" className="block text-sm font-medium text-gray-700">Login as</label>
+                  <select
+                    id="role"
+                    name="role"
+                    value={role}
+                    onChange={e => setRole(e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  >
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
                 {renderEmailField()}
                 {renderPasswordField()}
                 {renderSubmitButton('Sign in with OTP', isLoading.login)}

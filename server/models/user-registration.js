@@ -15,6 +15,14 @@ const userSchema = new mongoose.Schema({
   isAdmin: {
     type: Boolean,
     default: false,
+  },
+  googleId: {
+    type: String,
+    sparse: true, // Allows multiple null values
+  },
+  isEmailVerified: {
+    type: Boolean,
+    default: false,
   }
 });
 

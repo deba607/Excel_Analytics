@@ -1,15 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { FaUsers, FaFileAlt, FaChartBar, FaCogs } from 'react-icons/fa';
-import { useState } from 'react';
+import { FaUsers, FaFileAlt } from 'react-icons/fa';
 import axios from 'axios';
-
-const stats = [
-  { label: 'Total Users', value: 128, icon: <FaUsers className="text-blue-500 w-6 h-6" /> },
-  { label: 'Files Imported', value: 542, icon: <FaFileAlt className="text-purple-500 w-6 h-6" /> },
-  { label: 'Active Sessions', value: 17, icon: <FaChartBar className="text-blue-400 w-6 h-6" /> },
-  { label: 'System Health', value: 'Good', icon: <FaCogs className="text-purple-400 w-6 h-6" /> },
-];
+import { useAuth } from '../../store/auth';
+import { AnimatePresence } from 'framer-motion';
 
 const cardVariants = {
   hidden: { opacity: 0, y: 40 },
@@ -21,11 +15,44 @@ const cardVariants = {
 };
 
 const AdminDashboard = () => {
+  const auth = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
+  const [stats, setStats] = useState([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [showUsersModal, setShowUsersModal] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      setStatsLoading(true);
+      try {
+        const res = await axios.get('/api/adminLogin/stats');
+        if (res.data.success && res.data.data) {
+          const cards = [];
+          if (typeof res.data.data.totalUsers === 'number') {
+            cards.push({ label: 'Total Users', value: res.data.data.totalUsers, icon: <FaUsers className="text-blue-500 w-6 h-6" /> });
+          }
+          if (typeof res.data.data.totalFiles === 'number') {
+            cards.push({ label: 'Files Imported', value: res.data.data.totalFiles, icon: <FaFileAlt className="text-purple-500 w-6 h-6" /> });
+          }
+          setStats(cards);
+        } else {
+          setStats([]);
+        }
+      } catch (err) {
+        setStats([]);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -54,6 +81,25 @@ const AdminDashboard = () => {
       setError(err.response?.data?.message || 'Failed to add admin');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handler for Total Users card click
+  const handleTotalUsersClick = async () => {
+    setShowUsersModal(true);
+    setUsersLoading(true);
+    setUsersError(null);
+    try {
+      const res = await axios.get('/api/adminLogin/users');
+      if (res.data.success) {
+        setUsers(res.data.users);
+      } else {
+        setUsersError('Failed to fetch users');
+      }
+    } catch (err) {
+      setUsersError('Failed to fetch users');
+    } finally {
+      setUsersLoading(false);
     }
   };
 
@@ -130,6 +176,59 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+      {/* Users Modal */}
+      <AnimatePresence>
+        {showUsersModal && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[80vh]"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 120 }}
+            >
+              <button
+                className="absolute top-3 right-4 text-gray-400 hover:text-gray-700 text-2xl"
+                onClick={() => setShowUsersModal(false)}
+                aria-label="Close"
+              >
+                &times;
+              </button>
+              <h3 className="text-2xl font-bold mb-6 text-blue-700 text-center">All Users</h3>
+              {usersLoading ? (
+                <div className="text-center text-gray-500 py-8">Loading users...</div>
+              ) : usersError ? (
+                <div className="text-center text-red-500 py-8">{usersError}</div>
+              ) : users.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">No users found.</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {users.map((user, idx) => (
+                    <motion.div
+                      key={user._id}
+                      className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl shadow p-6 flex flex-col items-center"
+                      initial={{ opacity: 0, y: 40 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05, type: 'spring', stiffness: 80 }}
+                    >
+                      <FaUsers className="text-blue-500 w-8 h-8 mb-2" />
+                      <div className="font-semibold text-lg text-blue-700 mb-1">{user.name}</div>
+                      <div className="text-gray-600 text-sm mb-1">{user.email}</div>
+                      <div className="text-xs text-gray-400">ID: {user._id}</div>
+                      {user.isAdmin && <div className="mt-2 px-2 py-1 bg-blue-200 text-blue-800 rounded text-xs font-semibold">Admin</div>}
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <motion.div
         className="w-full max-w-4xl bg-white rounded-2xl shadow-xl p-8 mb-8"
         initial={{ opacity: 0, y: -40 }}
@@ -138,22 +237,29 @@ const AdminDashboard = () => {
       >
         <h2 className="text-3xl font-bold text-center text-blue-700 mb-2">Welcome, Admin!</h2>
         <p className="text-center text-gray-500 mb-6">Here you can manage users, view system stats, and monitor activity.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-          {stats.map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              className="flex flex-col items-center bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl shadow p-6"
-              custom={i}
-              initial="hidden"
-              animate="visible"
-              variants={cardVariants}
-            >
-              <div className="mb-2">{stat.icon}</div>
-              <div className="text-2xl font-bold text-blue-700">{stat.value}</div>
-              <div className="text-sm text-gray-500 mt-1">{stat.label}</div>
-            </motion.div>
-          ))}
-        </div>
+        {statsLoading ? (
+          <div className="text-center text-gray-400 py-8">Loading stats...</div>
+        ) : stats.length === 0 ? (
+          <div className="text-center text-gray-400 py-8">No stats available.</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+            {stats.map((stat, i) => (
+              <motion.div
+                key={stat.label}
+                className="flex flex-col items-center bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl shadow p-6 cursor-pointer hover:shadow-2xl transition-shadow duration-300"
+                custom={i}
+                initial="hidden"
+                animate="visible"
+                variants={cardVariants}
+                onClick={stat.label === 'Total Users' ? handleTotalUsersClick : undefined}
+              >
+                <div className="mb-2">{stat.icon}</div>
+                <div className="text-2xl font-bold text-blue-700">{stat.value}</div>
+                <div className="text-sm text-gray-500 mt-1">{stat.label}</div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </motion.div>
       <motion.div
         className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-8"
@@ -181,14 +287,6 @@ const AdminDashboard = () => {
           <FaFileAlt className="text-purple-500 w-8 h-8 mb-2" />
           <div className="font-semibold text-lg mb-1">File Overview</div>
           <div className="text-gray-500 text-sm text-center">See all imported files, monitor uploads, and review data usage.</div>
-        </motion.div>
-        <motion.div
-          className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center hover:shadow-2xl transition-shadow duration-300"
-          whileHover={{ scale: 1.03 }}
-        >
-          <FaChartBar className="text-blue-400 w-8 h-8 mb-2" />
-          <div className="font-semibold text-lg mb-1">System Logs</div>
-          <div className="text-gray-500 text-sm text-center">Audit system activity, view logs, and monitor security events.</div>
         </motion.div>
       </motion.div>
     </div>
