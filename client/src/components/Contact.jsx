@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { FaMapMarkerAlt, FaPhone, FaEnvelope, FaPaperPlane, FaCheckCircle, FaTwitter, FaLinkedin, FaGithub, FaYoutube } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
+import { BACKEND_URL } from '../store/backend.jsx';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -26,7 +27,7 @@ const Contact = () => {
     setIsSubmitting(true);
     try {
       // Replace with your actual API endpoint
-      const response = await fetch('http://localhost:8000/api/contact', {
+      const response = await fetch(`${BACKEND_URL}/api/contact`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

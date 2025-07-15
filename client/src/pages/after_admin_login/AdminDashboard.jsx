@@ -7,6 +7,7 @@ import { useAuth } from '../../store/auth';
 import { AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { BACKEND_URL } from '../../store/backend.jsx';
 
 const cardVariants = {
   hidden: { opacity: 0, y: 40 },
@@ -16,8 +17,6 @@ const cardVariants = {
     transition: { delay: i * 0.15, type: 'spring', stiffness: 80 }
   })
 };
-
-const BACKEND_URL = 'http://localhost:8000'; // Change this if your backend runs elsewhere
 
 const AdminDashboard = () => {
   const auth = useAuth();

@@ -20,6 +20,7 @@ import { Chart, registerables } from 'chart.js';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
 import { useAuth } from '../../store/auth';
+import { BACKEND_URL } from '../../store/backend.jsx';
 
 // Register Chart.js components
 Chart.register(...registerables);
@@ -29,7 +30,7 @@ const Analysis = () => {
 
   // API configuration
   const API = axios.create({
-    baseURL: 'http://localhost:8000/api',
+    baseURL: `${BACKEND_URL}/api`,
     headers: {
       'Content-Type': 'application/json'
     }

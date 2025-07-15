@@ -3,6 +3,7 @@ import { useAuth } from '../../store/auth';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import 'animate.css';
+import { BACKEND_URL } from '../../store/backend.jsx';
 
 const Home = () => {
   const { userEmail } = useAuth();
@@ -54,11 +55,11 @@ const Home = () => {
       try {
         const token = localStorage.getItem('token');
         const [filesRes, reportsRes] = await Promise.all([
-          axios.get('http://localhost:8000/api/v1/files/getfiles', {
+          axios.get(`${BACKEND_URL}/api/v1/files/getfiles`, {
             headers: { Authorization: `Bearer ${token}` },
             params: { limit: 1 }
           }),
-          axios.get('http://localhost:8000/api/v1/analysis/history', {
+          axios.get(`${BACKEND_URL}/api/v1/analysis/history`, {
             headers: { Authorization: `Bearer ${token}` },
           })
         ]);

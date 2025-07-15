@@ -12,6 +12,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../store/auth';
 import axios from 'axios';
+import { BACKEND_URL } from '../../store/backend.jsx';
 
 const Import = () => {
   // Authentication
@@ -25,7 +26,7 @@ const Import = () => {
   const [importStatus, setImportStatus] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef(null);
-  const API = 'http://localhost:8000';
+  const API = BACKEND_URL;
   // Handle drag and drop events
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -91,7 +92,7 @@ const Import = () => {
   const checkFileExistsInDB = async (fileName) => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await axios.get('http://localhost:8000/api/v1/files/getfiles', {
+      const response = await axios.get(`${API}/api/v1/files/getfiles`, {
         headers: {
           'Authorization': `Bearer ${token}`
         },
@@ -149,7 +150,7 @@ const handleImport = async () => {
   try {
 
     
-    const response = await axios.post('http://localhost:8000/api/v1/files', formData, {
+    const response = await axios.post(`${API}/api/v1/files`, formData, {
       method: 'POST',
       headers: {
         'Content-Type': 'multipart/form-data',

@@ -4,6 +4,7 @@ import { FaEnvelope, FaLock, FaArrowLeft, FaCheckCircle, FaEye, FaEyeSlash } fro
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../store/auth';
 import { motion } from 'framer-motion';
+import { BACKEND_URL } from '../store/backend.jsx';
 
 const Login = () => {
   // Authentication
@@ -108,7 +109,7 @@ const Login = () => {
   };
 
   // Update API_URL based on role
-  const getApiUrl = () => role === 'admin' ? 'http://localhost:8000/api/adminLogin' : 'http://localhost:8000/api/authLogin';
+  const getApiUrl = () => role === 'admin' ? `${BACKEND_URL}/api/adminLogin` : `${BACKEND_URL}/api/authLogin`;
 
   const handleLogin = async () => {
     setIsLoading(prev => ({ ...prev, login: true }));

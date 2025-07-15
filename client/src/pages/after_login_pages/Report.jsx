@@ -3,6 +3,7 @@ import { useAuth } from '../../store/auth';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { FiDownload } from 'react-icons/fi';
+import { BACKEND_URL } from '../../store/backend.jsx';
 
 const Report = () => {
   const { userEmail, token } = useAuth();
@@ -22,7 +23,7 @@ const Report = () => {
 
   // API instance with auth
   const API = axios.create({
-    baseURL: 'http://localhost:8000/api',
+    baseURL: `${BACKEND_URL}/api`,
     headers: { 'Content-Type': 'application/json' }
   });
   API.interceptors.request.use((config) => {
@@ -97,7 +98,7 @@ const Report = () => {
         yAxis: report.yAxis,
         format: format
       };
-      const response = await axios.get('http://localhost:8000/api/v1/analysis/export', {
+      const response = await axios.get(`${BACKEND_URL}/api/v1/analysis/export`, {
         params,
         responseType: 'blob',
         headers: {

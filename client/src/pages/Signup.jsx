@@ -4,8 +4,9 @@ import { FaEnvelope, FaLock, FaUser, FaKey, FaArrowLeft, FaCheckCircle } from 'r
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { BACKEND_URL } from '../store/backend.jsx';
 
-const API_URL = 'http://localhost:8000/api/auth';
+const API_URL = `${BACKEND_URL}/api/auth`;
 
 const Signup = () => {
   const navigate = useNavigate();
