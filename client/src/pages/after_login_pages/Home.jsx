@@ -4,11 +4,13 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import 'animate.css';
 import { BACKEND_URL } from '../../store/backend.jsx';
+import { useNavigate } from 'react-router-dom';
 
 const Home = () => {
   const { userEmail } = useAuth();
   const [stats, setStats] = useState({ files: 0, reports: 0 });
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   // Animation variants
   const containerVariants = {
@@ -290,6 +292,7 @@ const Home = () => {
             whileHover={{ scale: 1.05, boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)' }}
             whileTap={{ scale: 0.98 }}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium"
+            onClick={() => navigate('/dashboard/import')}
           >
             Upload File
           </motion.button>
@@ -297,6 +300,7 @@ const Home = () => {
             whileHover={{ scale: 1.05, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)' }}
             whileTap={{ scale: 0.98 }}
             className="px-6 py-2 bg-green-600 text-white rounded-lg font-medium"
+            onClick={() => navigate('/dashboard/reports')}
           >
             View Reports
           </motion.button>
