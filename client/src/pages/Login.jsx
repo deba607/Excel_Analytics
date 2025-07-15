@@ -49,13 +49,27 @@ const Login = () => {
     }
   }, [isLoggedIn, navigate]);
 
-  // useEffect(() => {
-  //   let timer;
-  //   if (countdown > 0) {
-  //     timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-  //   }
-  //   return () => clearTimeout(timer);
-  // }, [countdown]);
+  // On mount, resume countdown if needed
+  useEffect(() => {
+    const end = localStorage.getItem('loginOtpCountdownEnd');
+    if (end) {
+      const remaining = Math.max(0, Math.ceil((parseInt(end) - Date.now()) / 1000));
+      if (remaining > 0) setCountdown(remaining);
+      else localStorage.removeItem('loginOtpCountdownEnd');
+    }
+  }, []);
+
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    let timer;
+    if (countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      localStorage.setItem('loginOtpCountdownEnd', Date.now() + countdown * 1000);
+    } else {
+      localStorage.removeItem('loginOtpCountdownEnd');
+    }
+    return () => clearTimeout(timer);
+  }, [countdown]);
 
   // Validation
   const validateForm = () => {
