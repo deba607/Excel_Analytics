@@ -1,15 +1,11 @@
 const mongoose = require('mongoose');
 
 const fileSchema = new mongoose.Schema({
-  filename: {
+  gridFsId: {
     type: String,
     required: true
   },
   originalName: {
-    type: String,
-    required: true
-  },
-  path: {
     type: String,
     required: true
   },
@@ -24,7 +20,7 @@ const fileSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: ['pending', 'processing', 'completed', 'failed'],
-    default: 'pending'
+    default: 'completed'
   },
   columns: {
     type: [String],
@@ -33,6 +29,5 @@ const fileSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
-
 
 module.exports = mongoose.model('File', fileSchema);

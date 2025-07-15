@@ -84,7 +84,6 @@ app.use('/api/adminLogin', adminLoginRouter);
 app.use('/api/auth', googleAuthRouter);
 
 // Set static folders
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/output', express.static(path.join(__dirname, 'output')));
 
 // Mount routers

@@ -819,33 +819,37 @@ const AdminDashboard = () => {
                         <div className="border-t pt-3">
                           <div className="font-medium text-gray-700 mb-1">Download Options:</div>
                           <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() => handleDownload(report, 'png')}
-                              className={`px-3 py-1 bg-blue-600 text-white rounded-full text-sm font-semibold hover:bg-blue-700 transition ${
-                                downloading[report._id] ? 'opacity-50 cursor-not-allowed' : ''
-                              }`}
-                              disabled={downloading[report._id]}
-                            >
-                              {downloading[report._id] ? 'Downloading...' : 'PNG'}
-                            </button>
-                            <button
-                              onClick={() => handleDownload(report, 'pdf')}
-                              className={`px-3 py-1 bg-red-600 text-white rounded-full text-sm font-semibold hover:bg-red-700 transition ${
-                                downloading[report._id] ? 'opacity-50 cursor-not-allowed' : ''
-                              }`}
-                              disabled={downloading[report._id]}
-                            >
-                              {downloading[report._id] ? 'Downloading...' : 'PDF'}
-                            </button>
-                            <button
-                              onClick={() => handleDownload(report, 'svg')}
-                              className={`px-3 py-1 bg-green-600 text-white rounded-full text-sm font-semibold hover:bg-green-700 transition ${
-                                downloading[report._id] ? 'opacity-50 cursor-not-allowed' : ''
-                              }`}
-                              disabled={downloading[report._id]}
-                            >
-                              {downloading[report._id] ? 'Downloading...' : 'SVG'}
-                            </button>
+                            {report.reportGridFsId && (
+                              <>
+                                <button
+                                  onClick={() => handleDownload(report, 'png')}
+                                  className={`px-3 py-1 bg-blue-600 text-white rounded-full text-sm font-semibold hover:bg-blue-700 transition ${
+                                    downloading[report._id] ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
+                                  disabled={downloading[report._id]}
+                                >
+                                  {downloading[report._id] ? 'Downloading...' : 'PNG'}
+                                </button>
+                                <button
+                                  onClick={() => handleDownload(report, 'pdf')}
+                                  className={`px-3 py-1 bg-red-600 text-white rounded-full text-sm font-semibold hover:bg-red-700 transition ${
+                                    downloading[report._id] ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
+                                  disabled={downloading[report._id]}
+                                >
+                                  {downloading[report._id] ? 'Downloading...' : 'PDF'}
+                                </button>
+                                <button
+                                  onClick={() => handleDownload(report, 'svg')}
+                                  className={`px-3 py-1 bg-green-600 text-white rounded-full text-sm font-semibold hover:bg-green-700 transition ${
+                                    downloading[report._id] ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
+                                  disabled={downloading[report._id]}
+                                >
+                                  {downloading[report._id] ? 'Downloading...' : 'SVG'}
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>

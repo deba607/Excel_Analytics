@@ -29,8 +29,9 @@ const analysisSchema = new mongoose.Schema({
     type: String,
     required: false
   },
-  reportPath: {
-    type: String // Path to generated chart image
+  reportGridFsId: {
+    type: String, // GridFS file ID for the chart image
+    required: true
   },
   createdAt: {
     type: Date,
