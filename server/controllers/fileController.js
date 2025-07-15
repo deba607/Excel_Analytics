@@ -4,6 +4,9 @@ const path = require('path');
 const ExcelJS = require('exceljs');
 const { parse } = require('csv-parse/sync');
 const fs = require('fs');
+const { getGridFSBucket } = require('../utils/db');
+const { ObjectId } = require('mongodb');
+const tmp = require('tmp');
 
 async function extractColumnsFromFile(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -35,7 +38,7 @@ exports.uploadFiles = async (req, res) => {
     }
     
     // Get user email from the authenticated request
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.admin?.email;
     if (!userEmail) {
       return res.status(401).json({
         success: false,
@@ -44,117 +47,83 @@ exports.uploadFiles = async (req, res) => {
     }
 
     const uploadedFiles = [];
-    const duplicateFiles = [];
+    const gridfsBucket = await getGridFSBucket();
 
     for (const file of req.files) {
       try {
-        // Check if file with same name and size already exists for this user's email
+        // Check for duplicate by name/size/email
         const existingFile = await File.findOne({ 
           originalName: file.originalname,
           size: file.size,
-          userEmail // Using email instead of userId
+          userEmail
         });
-
         if (existingFile) {
-          // Check if file exists on disk
-          const fsPath = require('path').join(__dirname, '../../uploads', existingFile.filename);
-          const fsPromises = require('fs').promises;
-          let fileOnDisk = false;
-          try {
-            await fsPromises.access(fsPath);
-            fileOnDisk = true;
-          } catch {
-            fileOnDisk = false;
-          }
-
-          if (fileOnDisk) {
-            // File exists in both DB and disk, return as success
-            uploadedFiles.push({
-              id: existingFile._id,
-              filename: existingFile.filename,
-              originalName: existingFile.originalName,
-              size: existingFile.size,
-              uploadedAt: existingFile.createdAt,
-              message: 'File already exists, not re-uploaded.'
+          uploadedFiles.push({
+            id: existingFile._id,
+            originalName: existingFile.originalName,
+            size: existingFile.size,
+            uploadedAt: existingFile.createdAt,
+            message: 'File already exists, not re-uploaded.'
           });
-          continue; // Skip to next file
-          } else {
-            // File missing on disk, allow re-upload and update DB
-            existingFile.filename = file.filename;
-            existingFile.path = file.path;
-            existingFile.size = file.size;
-            existingFile.status = 'completed';
-            await existingFile.save();
-            uploadedFiles.push({
-              id: existingFile._id,
-              filename: existingFile.filename,
-              originalName: existingFile.originalName,
-              size: existingFile.size,
-              uploadedAt: existingFile.createdAt,
-              message: 'File was missing on disk, re-uploaded and DB updated.'
-            });
-            continue;
-          }
+          continue;
         }
-
-        // If file doesn't exist, create new record
+        // Upload to GridFS
+        const uploadStream = gridfsBucket.openUploadStream(file.originalname, {
+          contentType: file.mimetype,
+          metadata: { userEmail }
+        });
+        uploadStream.end(file.buffer);
+        await new Promise((resolve, reject) => {
+          uploadStream.on('finish', resolve);
+          uploadStream.on('error', reject);
+        });
+        // Save metadata in File collection
         const newFile = new File({
-          filename: file.filename,
+          gridFsId: uploadStream.id.toString(),
           originalName: file.originalname,
-          path: file.path,
           size: file.size,
-          userEmail, // Using email instead of userId
+          userEmail,
           status: 'completed',
         });
-
-        await newFile.save();
-        // Extract columns and update file
+        // After saving to GridFS, extract columns
+        let columns = [];
         try {
-          const columns = await extractColumnsFromFile(newFile.path);
-          newFile.columns = columns;
-          await newFile.save();
+          // Download file from GridFS to buffer
+          const downloadStream = gridfsBucket.openDownloadStream(uploadStream.id);
+          const chunks = [];
+          await new Promise((resolve, reject) => {
+            downloadStream.on('data', chunk => chunks.push(chunk));
+            downloadStream.on('end', resolve);
+            downloadStream.on('error', reject);
+          });
+          const fileBuffer = Buffer.concat(chunks);
+          // Save to temp file
+          const ext = path.extname(file.originalname).toLowerCase();
+          const tmpFile = tmp.fileSync({ postfix: ext });
+          require('fs').writeFileSync(tmpFile.name, fileBuffer);
+          columns = await extractColumnsFromFile(tmpFile.name);
+          tmpFile.removeCallback();
         } catch (err) {
           console.error('Failed to extract columns:', err);
         }
+        newFile.columns = columns;
+        await newFile.save();
         uploadedFiles.push({
           id: newFile._id,
-          filename: newFile.filename,
           originalName: newFile.originalName,
           size: newFile.size,
           uploadedAt: newFile.createdAt,
           message: 'File uploaded successfully.'
         });
-
       } catch (fileError) {
         console.error(`Error processing file ${file.originalname}:`, fileError);
-        // Continue with next file even if one fails
       }
     }
-
-    const response = {
+    res.status(201).json({
       success: true,
       uploadedCount: uploadedFiles.length,
       uploadedFiles
-    };
-
-    if (duplicateFiles.length > 0) {
-      response.duplicateCount = duplicateFiles.length;
-      response.duplicateFiles = duplicateFiles;
-      response.message = 'Some files were skipped as they already exist';
-    }
-
-    // If all files were duplicates
-    if (uploadedFiles.length === 0 && duplicateFiles.length > 0) {
-      return res.status(200).json({
-        success: true,
-        message: 'All files were skipped as they already exist',
-        duplicateCount: duplicateFiles.length,
-        duplicateFiles
-      });
-    }
-
-    res.status(201).json(response);
-
+    });
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ 
@@ -182,7 +151,8 @@ exports.getFiles = async (req, res) => {
     });
 
     // Ensure user is authenticated
-    if (!req.user || !req.user.email) {
+    const userEmail = req.user?.email || req.admin?.email;
+    if (!userEmail) {
       console.log('[GetFiles] Authentication failed - no user or email');
       return res.status(401).json({ 
         success: false,
@@ -190,7 +160,6 @@ exports.getFiles = async (req, res) => {
       });
     }
 
-    const userEmail = req.user.email;
     console.log('[GetFiles] User email:', userEmail);
     
     // Basic query with user filter
@@ -281,7 +250,7 @@ exports.getFiles = async (req, res) => {
 exports.deleteFile = async (req, res) => {
   try {
     const { fileId } = req.params;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.admin?.email;
 
     if (!userEmail) {
       return res.status(401).json({
@@ -314,18 +283,6 @@ exports.deleteFile = async (req, res) => {
     // Delete the file record
     await File.findByIdAndDelete(fileId);
 
-    // Delete the actual file from disk
-    const fs = require('fs').promises;
-    const path = require('path');
-    const filePath = path.join(__dirname, '../../uploads', file.filename);
-    
-    try {
-      await fs.unlink(filePath);
-    } catch (error) {
-      console.error(`Error deleting file from disk: ${error.message}`);
-      // Continue even if file deletion fails
-    }
-
     res.status(200).json({
       success: true,
       message: 'File and associated analysis deleted successfully'
@@ -338,5 +295,38 @@ exports.deleteFile = async (req, res) => {
       error: 'Server error deleting file',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+};
+
+// @desc    Download file from GridFS
+// @route   GET /api/v1/files/download/:gridFsId
+// @access  Private
+exports.downloadFile = async (req, res) => {
+  try {
+    const { gridFsId } = req.params;
+    if (!gridFsId) {
+      return res.status(400).json({ success: false, message: 'Missing GridFS ID' });
+    }
+    const gridfsBucket = await getGridFSBucket();
+    // Find file metadata
+    const fileDoc = await File.findOne({ gridFsId });
+    if (!fileDoc) {
+      return res.status(404).json({ success: false, message: 'File not found in database' });
+    }
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileDoc.originalName}"`);
+    const downloadStream = gridfsBucket.openDownloadStream(new ObjectId(gridFsId));
+    downloadStream.on('error', (err) => {
+      console.error('GridFS download error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: 'Error downloading file' });
+      }
+    });
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error('Download file error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: 'Server error during file download' });
+    }
   }
 };

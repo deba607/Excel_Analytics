@@ -298,7 +298,7 @@ const Report = () => {
                         <td className="px-4 py-2">{report.yAxis}</td>
                         <td className="px-4 py-2">{new Date(report.createdAt).toLocaleString()}</td>
                         <td className="px-4 py-2">
-                          {report.reportPath ? (
+                          {report.reportGridFsId ? (
                             <div className="flex items-center gap-2">
                               <select
                                 value={downloadFormat[report._id] || 'png'}

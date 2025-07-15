@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user-registration');
+const Admin = require('../models/Admin');
 
 const protect = async (req, res, next) => {
   let token;
@@ -20,9 +21,20 @@ const protect = async (req, res, next) => {
   try {
     // Verify token
     const decoded = jwt.verify(token, process.env.SECRET_KEY);
-    // Get user from the token
-    req.user = await User.findById(decoded.userId).select('-password');
-    console.log('Auth successful for user:', req.user?.email);
+    // Check if admin or user
+    if (decoded.adminId) {
+      req.admin = await Admin.findById(decoded.adminId).select('-password');
+      console.log('Auth successful for admin:', req.admin?.email);
+    } else if (decoded.userId) {
+      req.user = await User.findById(decoded.userId).select('-password');
+      console.log('Auth successful for user:', req.user?.email);
+    } else {
+      console.log('Auth failed: No valid user or admin in token');
+      return res.status(401).json({
+        success: false,
+        error: 'Not authorized, invalid token payload',
+      });
+    }
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);

@@ -49,13 +49,27 @@ const Login = () => {
     }
   }, [isLoggedIn, navigate]);
 
-  // useEffect(() => {
-  //   let timer;
-  //   if (countdown > 0) {
-  //     timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-  //   }
-  //   return () => clearTimeout(timer);
-  // }, [countdown]);
+  // On mount, resume countdown if needed
+  useEffect(() => {
+    const end = localStorage.getItem('loginOtpCountdownEnd');
+    if (end) {
+      const remaining = Math.max(0, Math.ceil((parseInt(end) - Date.now()) / 1000));
+      if (remaining > 0) setCountdown(remaining);
+      else localStorage.removeItem('loginOtpCountdownEnd');
+    }
+  }, []);
+
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    let timer;
+    if (countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      localStorage.setItem('loginOtpCountdownEnd', Date.now() + countdown * 1000);
+    } else {
+      localStorage.removeItem('loginOtpCountdownEnd');
+    }
+    return () => clearTimeout(timer);
+  }, [countdown]);
 
   // Validation
   const validateForm = () => {
@@ -182,24 +196,23 @@ const Login = () => {
     // Store the token in localStorage and auth context
     localStorage.setItem('token', data.token);
     localStorage.setItem('userEmail', formData.email);
-      localStorage.setItem('role', role);
+    localStorage.setItem('role', role);
     setToken(data.token);
     storeuserEmailLS(formData.email);
     setuserEmail(formData.email);
-      setUser({ email: formData.email, role });
-      if (role === 'admin') {
-        // Optionally store adminEmail for legacy code
-        setadminEmail && setadminEmail(formData.email);
-        storeadminEmailLS && storeadminEmailLS(formData.email);
-      }
+    setUser({ email: formData.email, role });
+    if (role === 'admin') {
+      setadminEmail && setadminEmail(formData.email);
+      storeadminEmailLS && storeadminEmailLS(formData.email);
+    }
     setOtpVerified(true);
     toast.success('Login successful!');
-      // Redirect based on role
-      if (role === 'admin') {
-        navigate('/admin', { replace: true });
-      } else {
-    navigate('/dashboard', { replace: true });
-      }
+    // Redirect based on role
+    if (role === 'admin') {
+      navigate('/admin', { replace: true });
+    } else {
+      navigate('/dashboard', { replace: true });
+    }
     setFormData({ email: '', password: '' });
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to verify OTP';

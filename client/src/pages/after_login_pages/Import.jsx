@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../store/auth';
-import axios from 'axios';
+import axios from '../../store/axios';
 import { BACKEND_URL } from '../../store/backend.jsx';
 
 const Import = () => {

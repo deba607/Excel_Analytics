@@ -7,6 +7,7 @@ const Analysis = require('../models/Analysis');
 const { sendOtpEmail } = require('../utils/sendOtpEmail');
 
 // In-memory store for OTPs (for demo/testing)
+//nice
 const otpStore = {};
 
 // In-memory store for admin registration OTPs

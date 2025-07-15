@@ -5,7 +5,8 @@ const { protect } = require('../middlewares/auth');
 const {
   uploadFiles,
   getFiles,
-  deleteFile
+  deleteFile,
+  downloadFile
 } = require('../controllers/fileController');
 
 // Public test endpoint (no auth required)
@@ -28,6 +29,9 @@ router.route('/getfiles')
 
 router.route('/:fileId')
   .delete(deleteFile);
+
+// Add after auth middleware
+router.get('/download/:gridFsId', downloadFile);
 
 // Health check route for debugging
 router.get('/test', (req, res) => {

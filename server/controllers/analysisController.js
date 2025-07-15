@@ -6,11 +6,12 @@ const Analysis = require('../models/Analysis');
 const File = require('../models/File');
 const { ChartJSNodeCanvas } = require('chartjs-node-canvas');
 const PDFDocument = require('pdfkit');
+const { getGridFSBucket } = require('../utils/db');
+const { ObjectId } = require('mongodb');
+const tmp = require('tmp');
 
 // Constants
-const UPLOADS_DIR = path.join(__dirname, '../uploads');
 const SUPPORTED_FORMATS = ['.xlsx', '.xls', '.csv', '.json'];
-const OUTPUTS_DIR = path.join(__dirname, '../output');
 
 /**
  * Process Excel file
@@ -100,25 +101,11 @@ function generateBasicStats(data) {
   };
 }
 
-/**
- * Helper to ensure output directory exists
- */
-async function ensureOutputDir() {
-  try {
-    await fs.access(OUTPUTS_DIR);
-  } catch (error) {
-    await fs.mkdir(OUTPUTS_DIR, { recursive: true });
-  }
-}
 
-/**
- * Save chart as image
- */
-async function saveChartImage(type, chartData, options, filename) {
+async function saveChartImageToGridFS(type, chartData, options, userEmail) {
   const width = 800;
   const height = 600;
   const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour: 'white' });
-
   const configuration = {
     type: type,
     data: chartData,
@@ -133,11 +120,18 @@ async function saveChartImage(type, chartData, options, filename) {
       }
     }
   };
-
   const image = await chartJSNodeCanvas.renderToBuffer(configuration);
-  const filePath = path.join(OUTPUTS_DIR, filename);
-  await fs.writeFile(filePath, image);
-  return filePath;
+  const gridfsBucket = await getGridFSBucket();
+  const filename = `chart_${type}_${Date.now()}.png`;
+  return await new Promise((resolve, reject) => {
+    const uploadStream = gridfsBucket.openUploadStream(filename, {
+      contentType: 'image/png',
+      metadata: { userEmail }
+    });
+    uploadStream.end(image);
+    uploadStream.on('finish', () => resolve(uploadStream.id.toString()));
+    uploadStream.on('error', reject);
+  });
 }
 
 /**
@@ -146,7 +140,7 @@ async function saveChartImage(type, chartData, options, filename) {
 exports.getAnalysis = async (req, res) => {
   try {
     const { fileId } = req.query;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.admin?.email;
 
     console.log('[Analysis] Request:', { fileId, userEmail });
 
@@ -167,70 +161,43 @@ exports.getAnalysis = async (req, res) => {
       });
     }
 
-    // Try to get file from database first
     let file = null;
     try {
       file = await File.findById(fileId);
     } catch (error) {
       console.log('[Analysis] File not found in database, checking uploads directory');
+      return res.status(404).json({
+        success: false,
+        message: 'File not found',
+        errorType: 'file_not_found'
+      });
     }
 
-    let filePath;
-    let fileName = 'Unknown';
-
-    if (file) {
-      // File exists in database
-      filePath = path.join(UPLOADS_DIR, file.filename);
-      fileName = file.originalName;
-      console.log('[Analysis] Using filename from DB:', file.filename);
-      
-      // Double-check if file exists on disk
-      try {
-        await fs.access(filePath);
-        console.log('[Analysis] File found on disk (from DB):', filePath);
-      } catch (error) {
-        console.error('[Analysis] File listed in DB but not found on disk:', filePath);
-        return res.status(404).json({
-          success: false,
-          message: 'File listed in database but not found on disk',
-          errorType: 'file_not_on_disk'
-        });
-      }
-    } else {
-      // File not in database, check uploads directory
-      console.log('[Analysis] Checking uploads directory for fileId:', fileId);
-      try {
-        const files = await fs.readdir(UPLOADS_DIR);
-        // Look for files that might match the fileId or contain it
-        const matchingFile = files.find(f => f.includes(fileId) || f.startsWith(fileId));
-        if (matchingFile) {
-          filePath = path.join(UPLOADS_DIR, matchingFile);
-          fileName = matchingFile;
-          console.log('[Analysis] Found file in uploads by fileId:', matchingFile);
-        } else {
-          console.error('[Analysis] No file found in uploads matching fileId:', fileId);
-          return res.status(404).json({
-            success: false,
-            message: 'File not found in database or uploads directory',
-            errorType: 'file_not_found'
-          });
-        }
-      } catch (error) {
-        console.error('[Analysis] Error reading uploads directory:', error);
-        return res.status(404).json({
-          success: false,
-          message: 'Uploads directory not accessible',
-          errorType: 'uploads_not_accessible'
-        });
-      }
+    if (!file) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found',
+        errorType: 'file_not_found'
+      });
     }
 
-    // Process file to get basic stats
+    // Download file from GridFS to temp file
     let data;
     try {
-      console.log('[Analysis] Processing file:', fileName);
-      data = await processFile(filePath);
-      console.log('[Analysis] Processed file:', { rows: data.length, file: fileName });
+      const gridfsBucket = await getGridFSBucket();
+      const downloadStream = gridfsBucket.openDownloadStream(new ObjectId(file.gridFsId));
+      const chunks = [];
+      await new Promise((resolve, reject) => {
+        downloadStream.on('data', chunk => chunks.push(chunk));
+        downloadStream.on('end', resolve);
+        downloadStream.on('error', reject);
+      });
+      const fileBuffer = Buffer.concat(chunks);
+      const ext = path.extname(file.originalName).toLowerCase();
+      const tmpFile = tmp.fileSync({ postfix: ext });
+      require('fs').writeFileSync(tmpFile.name, fileBuffer);
+      data = await processFile(tmpFile.name);
+      tmpFile.removeCallback();
     } catch (error) {
       console.error('[Analysis] File processing error:', error);
       return res.status(400).json({
@@ -276,7 +243,7 @@ exports.getAnalysis = async (req, res) => {
 exports.generateChart = async (req, res) => {
   try {
     const { fileId, chartType, xAxis, yAxis } = req.body;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.admin?.email;
 
     console.log('[GenerateChart] Request:', { fileId, chartType, xAxis, yAxis, userEmail });
 
@@ -318,24 +285,23 @@ exports.generateChart = async (req, res) => {
       });
     }
 
-    const filePath = path.join(UPLOADS_DIR, file.filename);
-    
-    // Check if file exists on disk
-    try {
-      await fs.access(filePath);
-    } catch (error) {
-      console.error('[GenerateChart] File not found on disk:', filePath);
-      return res.status(404).json({
-        success: false,
-        message: 'File not found on disk',
-        errorType: 'file_not_on_disk'
-      });
-    }
-
-    // Process file
+    // Download file from GridFS to temp file
     let data;
     try {
-      data = await processFile(filePath);
+      const gridfsBucket = await getGridFSBucket();
+      const downloadStream = gridfsBucket.openDownloadStream(new ObjectId(file.gridFsId));
+      const chunks = [];
+      await new Promise((resolve, reject) => {
+        downloadStream.on('data', chunk => chunks.push(chunk));
+        downloadStream.on('end', resolve);
+        downloadStream.on('error', reject);
+      });
+      const fileBuffer = Buffer.concat(chunks);
+      const ext = path.extname(file.originalName).toLowerCase();
+      const tmpFile = tmp.fileSync({ postfix: ext });
+      require('fs').writeFileSync(tmpFile.name, fileBuffer);
+      data = await processFile(tmpFile.name);
+      tmpFile.removeCallback();
     } catch (error) {
       console.error('[GenerateChart] File processing error:', error);
       return res.status(400).json({
@@ -378,11 +344,8 @@ exports.generateChart = async (req, res) => {
       }]
     };
 
-    // Generate chart image
-    await ensureOutputDir();
-    const filename = `chart_${chartType}_${Date.now()}.png`;
-    await saveChartImage(chartType, chartData, {}, filename); // Only pass filename
-    const chartImagePath = path.join('output', filename); // Store as 'output/filename'
+    // Save chart image to GridFS
+    const reportGridFsId = await saveChartImageToGridFS(chartType, chartData, {}, userEmail);
     // Save analysis
     let analysis;
     try {
@@ -390,10 +353,10 @@ exports.generateChart = async (req, res) => {
         userEmail,
         fileId,
         fileName: file.originalName,
-        chartType,
-        xAxis,
-        yAxis,
-        reportPath: chartImagePath
+        chartType: chartType?.toLowerCase().trim(),
+        xAxis: xAxis?.toString().trim(),
+        yAxis: yAxis?.toString().trim(),
+        reportGridFsId
       });
       console.log('[GenerateChart] Saved to database');
     } catch (error) {
@@ -404,7 +367,7 @@ exports.generateChart = async (req, res) => {
       return res.status(200).json({
       success: true,
       data: {
-        chartImagePath: chartImagePath,
+        reportGridFsId,
         chartData: chartData
       }
     });
@@ -423,7 +386,7 @@ exports.generateChart = async (req, res) => {
  */
 exports.getAnalysisHistory = async (req, res) => {
   try {
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.admin?.email;
     const { fileId } = req.query;
 
     console.log('[Analysis History] Request received:', { userEmail, fileId });
@@ -469,11 +432,11 @@ exports.getAnalysisHistory = async (req, res) => {
 exports.exportAnalysis = async (req, res) => {
   try {
     const { fileId, chartType, xAxis, yAxis, format = 'png' } = req.query;
-    const userEmail = req.user?.email;
-    const fs = require('fs');
+    const userEmail = req.user?.email || req.admin?.email;
     const sharp = require('sharp');
     const PDFDocument = require('pdfkit');
     const path = require('path');
+    const { ObjectId } = require('mongodb');
 
     console.log('[ExportAnalysis] Request:', { fileId, chartType, xAxis, yAxis, format, userEmail });
 
@@ -484,125 +447,97 @@ exports.exportAnalysis = async (req, res) => {
       });
     }
 
-    // Only look up the analysis record, do not generate on-demand
-    const analysis = await Analysis.findOne({
-      fileId,
-      userEmail,
-      chartType,
-      xAxis,
-      yAxis
-    }).sort({ createdAt: -1 });
+    // Ensure fileId is an ObjectId for the query
+    let fileIdObj = fileId;
+    if (fileId && typeof fileId === 'string' && fileId.length === 24) {
+      try {
+        fileIdObj = new ObjectId(fileId);
+      } catch (e) {}
+    }
+
+    // Main query
+    let mainQuery;
+    if (req.admin) {
+      // Admin: do not filter by userEmail
+      mainQuery = {
+        fileId: fileIdObj,
+        chartType: chartType?.toLowerCase().trim(),
+        xAxis: xAxis?.toString().trim(),
+        yAxis: yAxis?.toString().trim()
+      };
+    } else {
+      // User: must match userEmail
+      mainQuery = {
+        fileId: fileIdObj,
+        userEmail,
+        chartType: chartType?.toLowerCase().trim(),
+        xAxis: xAxis?.toString().trim(),
+        yAxis: yAxis?.toString().trim()
+      };
+    }
+    console.log('[ExportAnalysis] Main query:', mainQuery);
+    let analysis = await Analysis.findOne(mainQuery).sort({ createdAt: -1 });
     if (!analysis) {
-      console.log('[ExportAnalysis] Analysis not found for', { fileId, userEmail, chartType, xAxis, yAxis });
+      // Fallback: try just fileId (and userEmail for users)
+      let fallbackQuery = req.admin ? { fileId: fileIdObj } : { fileId: fileIdObj, userEmail };
+      const fallbackResults = await Analysis.find(fallbackQuery).sort({ createdAt: -1 });
+      console.log('[ExportAnalysis] Fallback query:', fallbackQuery, 'Results:', fallbackResults.map(a => ({ chartType: a.chartType, xAxis: a.xAxis, yAxis: a.yAxis, userEmail: a.userEmail })));
       return res.status(404).json({
         success: false,
-        message: 'Analysis not found for the specified chart options.'
+        message: 'Analysis not found for the specified chart options.',
+        debug: {
+          mainQuery,
+          fallbackResults: fallbackResults.map(a => ({ chartType: a.chartType, xAxis: a.xAxis, yAxis: a.yAxis, userEmail: a.userEmail }))
+        }
       });
     }
-    if (!analysis.reportPath) {
+    if (!analysis.reportGridFsId) {
       console.log('[ExportAnalysis] No chart image found for analysis');
       return res.status(404).json({
         success: false,
         message: 'No chart image found for this analysis.'
       });
     }
-    // Always resolve reportPath relative to project root
-    const resolvedPath = require('path').resolve(process.cwd(), analysis.reportPath);
-    const originalExt = analysis.reportPath.split('.').pop().toLowerCase();
+    const gridfsBucket = await getGridFSBucket();
+    const downloadStream = gridfsBucket.openDownloadStream(new ObjectId(analysis.reportGridFsId));
+    const chunks = [];
+    await new Promise((resolve, reject) => {
+      downloadStream.on('data', chunk => chunks.push(chunk));
+      downloadStream.on('end', resolve);
+      downloadStream.on('error', reject);
+    });
+    const imageBuffer = Buffer.concat(chunks);
     let contentType;
     let filename;
-
-    // Check if file exists and is a valid image before proceeding
-    try {
-      await fs.promises.access(resolvedPath, fs.constants.F_OK);
-    } catch (err) {
-      console.error('[ExportAnalysis] File does not exist on disk:', resolvedPath, err);
-      return res.status(404).json({
-        success: false,
-        message: 'Export file does not exist on disk.'
-      });
-    }
-    // Check if file is a valid image (for image/pdf export)
-    if (["pdf", "jpg", "jpeg", "png"].includes(format)) {
-      try {
-        await sharp(resolvedPath).metadata();
-      } catch (imgErr) {
-        console.error('[ExportAnalysis] File is not a valid image:', resolvedPath, imgErr);
-            return res.status(400).json({
-                success: false,
-          message: 'Export file is not a valid image.'
-        });
-      }
-    }
-
     if (format === 'pdf') {
       contentType = 'application/pdf';
       filename = `chart_${analysis.chartType}_${Date.now()}.pdf`;
+      const doc = new PDFDocument({ autoFirstPage: false });
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      doc.pipe(res);
+      doc.addPage({ size: [800, 600] });
+      doc.image(imageBuffer, 0, 0, { width: 800, height: 600 });
+      doc.end();
+      return;
     } else if (format === 'jpg' || format === 'jpeg' || format === 'png') {
       contentType = format === 'png' ? 'image/png' : 'image/jpeg';
       filename = `chart_${analysis.chartType}_${Date.now()}.${format}`;
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      // Convert if needed
+      if (format === 'png') {
+        return res.end(imageBuffer);
+      } else {
+        const converted = await sharp(imageBuffer).toFormat(format === 'jpg' ? 'jpeg' : format).toBuffer();
+        return res.end(converted);
+      }
     } else {
-      console.log('[ExportAnalysis] Unsupported export format:', format);
       return res.status(400).json({
-                success: false,
+        success: false,
         message: 'Unsupported export format. Only PDF, JPG, and PNG are allowed.'
       });
     }
-
-    // Conversion logic
-    if ((format === originalExt) || (format === 'jpeg' && originalExt === 'jpg') || (format === 'jpg' && originalExt === 'jpeg')) {
-      // No conversion needed, just send the file
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      return res.sendFile(resolvedPath);
-    } else if (format === 'pdf') {
-      // Convert image to PDF
-      try {
-        const doc = new PDFDocument({ autoFirstPage: false });
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        doc.pipe(res);
-        doc.addPage({ size: [800, 600] });
-        doc.image(resolvedPath, 0, 0, { width: 800, height: 600 });
-        doc.end();
-      } catch (pdfErr) {
-        console.error('[ExportAnalysis] Error generating PDF:', pdfErr);
-        return res.status(500).json({
-                success: false,
-          message: 'Error generating PDF: ' + pdfErr.message
-        });
-      }
-    } else if (format === 'jpg' || format === 'jpeg' || format === 'png') {
-      // Convert image to requested format using sharp
-      try {
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        const transformer = sharp(resolvedPath).toFormat(format === 'jpg' ? 'jpeg' : format);
-        transformer.on('error', (err) => {
-          console.error('[ExportAnalysis] Sharp stream error:', err);
-          if (!res.headersSent) {
-            res.status(500).json({
-                success: false,
-              message: 'Error converting image: ' + err.message
-            });
-          }
-        });
-        transformer.pipe(res);
-      } catch (err) {
-        console.error('[ExportAnalysis] Error converting image:', err);
-        if (!res.headersSent) {
-          return res.status(500).json({
-                success: false,
-            message: 'Error converting image: ' + err.message
-          });
-        }
-      }
-    } else {
-                    return res.status(400).json({
-                        success: false,
-        message: 'Unsupported export format.'
-                    });
-            }
   } catch (error) {
     console.error('[Export Analysis] Unexpected error:', error);
             return res.status(500).json({
