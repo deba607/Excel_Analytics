@@ -1,4 +1,5 @@
 const User = require('../models/user-registration');
+const Admin = require('../models/Admin');
 const Otp = require('../models/Otp');
 const {sendOtpEmail} = require('../utils/sendOtpEmail');
 const crypto = require('crypto');
@@ -406,13 +407,13 @@ exports.sendAdminLoginOTP = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Email and password are required' });
     }
-    // Check if user exists and is admin
-    const user = await User.findOne({ email, isAdmin: true });
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Admin user not found' });
+    // Check if admin exists in Admin collection
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' });
     }
     // Check password
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await admin.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Invalid password' });
     }
@@ -453,20 +454,20 @@ exports.verifyAdminLoginOTP = async (req, res) => {
       await Otp.deleteMany({ email, type: 'admin_login' });
       return res.status(400).json({ success: false, message: 'OTP has expired' });
     }
-    // OTP is valid - get user and generate token
-    const user = await User.findOne({ email, isAdmin: true });
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Admin user not found' });
+    // OTP is valid - get admin and generate token
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' });
     }
     // Optionally check password again
     if (password) {
-      const isMatch = await user.comparePassword(password);
+      const isMatch = await admin.comparePassword(password);
       if (!isMatch) {
         return res.status(401).json({ success: false, message: 'Invalid password' });
       }
     }
     // Generate JWT token
-    const token = user.generateToken();
+    const token = admin.generateToken();
     // Clear used OTPs
     await Otp.deleteMany({ email, type: 'admin_login' });
     res.status(200).json({
@@ -474,9 +475,9 @@ exports.verifyAdminLoginOTP = async (req, res) => {
       message: 'Admin login successful',
       token,
       user: {
-        id: user._id,
-        email: user.email,
-        name: user.name,
+        id: admin._id,
+        email: admin.email,
+        name: admin.name,
         role: 'admin'
       }
     });
@@ -496,10 +497,10 @@ exports.resendAdminLoginOTP = async (req, res) => {
     if (!email) {
       return res.status(400).json({ success: false, message: 'Email is required' });
     }
-    // Check if user exists and is admin
-    const user = await User.findOne({ email, isAdmin: true });
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Admin user not found' });
+    // Check if admin exists in Admin collection
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' });
     }
     // Delete any existing OTPs for this email
     await Otp.deleteMany({ email, type: 'admin_login' });

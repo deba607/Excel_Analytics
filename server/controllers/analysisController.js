@@ -140,7 +140,7 @@ async function saveChartImageToGridFS(type, chartData, options, userEmail) {
 exports.getAnalysis = async (req, res) => {
   try {
     const { fileId } = req.query;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.admin?.email;
 
     console.log('[Analysis] Request:', { fileId, userEmail });
 
@@ -243,7 +243,7 @@ exports.getAnalysis = async (req, res) => {
 exports.generateChart = async (req, res) => {
   try {
     const { fileId, chartType, xAxis, yAxis } = req.body;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.admin?.email;
 
     console.log('[GenerateChart] Request:', { fileId, chartType, xAxis, yAxis, userEmail });
 
@@ -353,9 +353,9 @@ exports.generateChart = async (req, res) => {
         userEmail,
         fileId,
         fileName: file.originalName,
-        chartType,
-        xAxis,
-        yAxis,
+        chartType: chartType?.toLowerCase().trim(),
+        xAxis: xAxis?.toString().trim(),
+        yAxis: yAxis?.toString().trim(),
         reportGridFsId
       });
       console.log('[GenerateChart] Saved to database');
@@ -386,7 +386,7 @@ exports.generateChart = async (req, res) => {
  */
 exports.getAnalysisHistory = async (req, res) => {
   try {
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.admin?.email;
     const { fileId } = req.query;
 
     console.log('[Analysis History] Request received:', { userEmail, fileId });
@@ -432,10 +432,11 @@ exports.getAnalysisHistory = async (req, res) => {
 exports.exportAnalysis = async (req, res) => {
   try {
     const { fileId, chartType, xAxis, yAxis, format = 'png' } = req.query;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.admin?.email;
     const sharp = require('sharp');
     const PDFDocument = require('pdfkit');
     const path = require('path');
+    const { ObjectId } = require('mongodb');
 
     console.log('[ExportAnalysis] Request:', { fileId, chartType, xAxis, yAxis, format, userEmail });
 
@@ -446,19 +447,48 @@ exports.exportAnalysis = async (req, res) => {
       });
     }
 
-    // Only look up the analysis record, do not generate on-demand
-    const analysis = await Analysis.findOne({
-      fileId,
-      userEmail,
-      chartType,
-      xAxis,
-      yAxis
-    }).sort({ createdAt: -1 });
+    // Ensure fileId is an ObjectId for the query
+    let fileIdObj = fileId;
+    if (fileId && typeof fileId === 'string' && fileId.length === 24) {
+      try {
+        fileIdObj = new ObjectId(fileId);
+      } catch (e) {}
+    }
+
+    // Main query
+    let mainQuery;
+    if (req.admin) {
+      // Admin: do not filter by userEmail
+      mainQuery = {
+        fileId: fileIdObj,
+        chartType: chartType?.toLowerCase().trim(),
+        xAxis: xAxis?.toString().trim(),
+        yAxis: yAxis?.toString().trim()
+      };
+    } else {
+      // User: must match userEmail
+      mainQuery = {
+        fileId: fileIdObj,
+        userEmail,
+        chartType: chartType?.toLowerCase().trim(),
+        xAxis: xAxis?.toString().trim(),
+        yAxis: yAxis?.toString().trim()
+      };
+    }
+    console.log('[ExportAnalysis] Main query:', mainQuery);
+    let analysis = await Analysis.findOne(mainQuery).sort({ createdAt: -1 });
     if (!analysis) {
-      console.log('[ExportAnalysis] Analysis not found for', { fileId, userEmail, chartType, xAxis, yAxis });
+      // Fallback: try just fileId (and userEmail for users)
+      let fallbackQuery = req.admin ? { fileId: fileIdObj } : { fileId: fileIdObj, userEmail };
+      const fallbackResults = await Analysis.find(fallbackQuery).sort({ createdAt: -1 });
+      console.log('[ExportAnalysis] Fallback query:', fallbackQuery, 'Results:', fallbackResults.map(a => ({ chartType: a.chartType, xAxis: a.xAxis, yAxis: a.yAxis, userEmail: a.userEmail })));
       return res.status(404).json({
         success: false,
-        message: 'Analysis not found for the specified chart options.'
+        message: 'Analysis not found for the specified chart options.',
+        debug: {
+          mainQuery,
+          fallbackResults: fallbackResults.map(a => ({ chartType: a.chartType, xAxis: a.xAxis, yAxis: a.yAxis, userEmail: a.userEmail }))
+        }
       });
     }
     if (!analysis.reportGridFsId) {

@@ -182,24 +182,23 @@ const Login = () => {
     // Store the token in localStorage and auth context
     localStorage.setItem('token', data.token);
     localStorage.setItem('userEmail', formData.email);
-      localStorage.setItem('role', role);
+    localStorage.setItem('role', role);
     setToken(data.token);
     storeuserEmailLS(formData.email);
     setuserEmail(formData.email);
-      setUser({ email: formData.email, role });
-      if (role === 'admin') {
-        // Optionally store adminEmail for legacy code
-        setadminEmail && setadminEmail(formData.email);
-        storeadminEmailLS && storeadminEmailLS(formData.email);
-      }
+    setUser({ email: formData.email, role });
+    if (role === 'admin') {
+      setadminEmail && setadminEmail(formData.email);
+      storeadminEmailLS && storeadminEmailLS(formData.email);
+    }
     setOtpVerified(true);
     toast.success('Login successful!');
-      // Redirect based on role
-      if (role === 'admin') {
-        navigate('/admin', { replace: true });
-      } else {
-    navigate('/dashboard', { replace: true });
-      }
+    // Redirect based on role
+    if (role === 'admin') {
+      navigate('/admin', { replace: true });
+    } else {
+      navigate('/dashboard', { replace: true });
+    }
     setFormData({ email: '', password: '' });
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to verify OTP';

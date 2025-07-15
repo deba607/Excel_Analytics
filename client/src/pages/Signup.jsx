@@ -40,11 +40,24 @@ const Signup = () => {
   const [verifying, setVerifying] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
+  // On mount, resume countdown if needed
+  useEffect(() => {
+    const end = localStorage.getItem('otpCountdownEnd');
+    if (end) {
+      const remaining = Math.max(0, Math.ceil((parseInt(end) - Date.now()) / 1000));
+      if (remaining > 0) setCountdown(remaining);
+      else localStorage.removeItem('otpCountdownEnd');
+    }
+  }, []);
+
   // Countdown timer for OTP resend
   useEffect(() => {
     let timer;
     if (countdown > 0) {
       timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      localStorage.setItem('otpCountdownEnd', Date.now() + countdown * 1000);
+    } else {
+      localStorage.removeItem('otpCountdownEnd');
     }
     return () => clearTimeout(timer);
   }, [countdown]);
@@ -206,6 +219,9 @@ const Signup = () => {
       if (response.data.success) {
         setCountdown(30);
         toast.success('New OTP sent to your email!');
+      } else if (response.data.message && response.data.message.includes('User already exists')) {
+        toast.error('User already exists with this email. Please login or use a different email.');
+        return;
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Failed to resend OTP. Please try again.';

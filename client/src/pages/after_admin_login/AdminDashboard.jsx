@@ -18,6 +18,21 @@ const cardVariants = {
   })
 };
 
+const getAdminApi = (token) => {
+  const instance = axios.create({
+    baseURL: BACKEND_URL,
+    headers: { 'Content-Type': 'application/json' }
+  });
+  instance.interceptors.request.use((config) => {
+    const currentToken = token || localStorage.getItem('token');
+    if (currentToken && currentToken !== 'null' && currentToken !== 'undefined') {
+      config.headers.Authorization = `Bearer ${currentToken}`;
+    }
+    return config;
+  });
+  return instance;
+};
+
 const AdminDashboard = () => {
   const auth = useAuth();
   const navigate = useNavigate();
@@ -74,7 +89,7 @@ const AdminDashboard = () => {
     const fetchStats = async () => {
       setStatsLoading(true);
       try {
-        const res = await axios.get('/api/adminLogin/stats');
+        const res = await API.get('/api/adminLogin/stats');
         if (res.data.success && res.data.data) {
           const cards = [];
           if (typeof res.data.data.totalUsers === 'number') {
@@ -122,7 +137,7 @@ const AdminDashboard = () => {
       return;
     }
     try {
-      const res = await axios.post('/api/auth/register-admin', form);
+      const res = await API.post('/api/auth/register-admin', form);
       setMessage('Admin added successfully!');
       setForm({ name: '', email: '', password: '', confirmPassword: '' });
     } catch (err) {
@@ -138,7 +153,7 @@ const AdminDashboard = () => {
     setUsersLoading(true);
     setUsersError(null);
     try {
-      const res = await axios.get('/api/adminLogin/users');
+      const res = await API.get('/api/adminLogin/users');
       if (res.data.success) {
         setUsers(res.data.users);
       } else {
@@ -157,7 +172,7 @@ const AdminDashboard = () => {
     setAdminsLoading(true);
     setAdminsError(null);
     try {
-      const res = await axios.get('/api/adminLogin/admins');
+      const res = await API.get('/api/adminLogin/admins');
       if (res.data.success) {
         setAdmins(res.data.admins);
       } else {
@@ -176,7 +191,7 @@ const AdminDashboard = () => {
     setFilesLoading(true);
     setFilesError(null);
     try {
-      const res = await axios.get('/api/adminLogin/files');
+      const res = await API.get('/api/adminLogin/files');
       if (res.data.success) {
         setFiles(res.data.files);
       } else {
@@ -195,7 +210,7 @@ const AdminDashboard = () => {
     setReportsLoading(true);
     setReportsError(null);
     try {
-      const res = await axios.get('/api/adminLogin/reports');
+      const res = await API.get('/api/adminLogin/reports');
       if (res.data.success) {
         setReports(res.data.reports);
       } else {
@@ -215,7 +230,7 @@ const AdminDashboard = () => {
       setFilesLoading(true);
       setFilesError(null);
       try {
-        const res = await axios.get('/api/adminLogin/files');
+        const res = await API.get('/api/adminLogin/files');
         if (res.data.success) {
           setFiles(res.data.files);
         } else {
@@ -235,12 +250,13 @@ const AdminDashboard = () => {
     try {
       const params = {
         fileId: report.fileId,
-        chartType: report.chartType,
-        xAxis: report.xAxis,
-        yAxis: report.yAxis,
+        chartType: report.chartType?.toLowerCase().trim(),
+        xAxis: report.xAxis?.toString().trim(),
+        yAxis: report.yAxis?.toString().trim(),
         format: format
       };
-      const response = await axios.get('/api/v1/analysis/export', {
+      // Do NOT send userEmail in params for admin export
+      const response = await API.get('/api/v1/analysis/export', {
         params,
         responseType: 'blob',
         headers: {
@@ -338,7 +354,7 @@ const AdminDashboard = () => {
     e.preventDefault();
     setEditLoading(true);
     try {
-      const res = await axios.patch(`/api/adminLogin/users/${editUser._id}`, { name: editName, email: editEmail });
+      const res = await API.patch(`/api/adminLogin/users/${editUser._id}`, { name: editName, email: editEmail });
       if (res.data.success) {
         setUsers(users.map(u => u._id === editUser._id ? res.data.user : u));
         closeEditModal();
@@ -355,7 +371,7 @@ const AdminDashboard = () => {
     if (!window.confirm('Are you sure you want to remove this user?')) return;
     setRemoveLoading(userId);
     try {
-      const res = await axios.delete(`/api/adminLogin/users/${userId}`);
+      const res = await API.delete(`/api/adminLogin/users/${userId}`);
       if (res.data.success) {
         setUsers(users.filter(u => u._id !== userId));
         toast.success('User removed');
@@ -368,6 +384,9 @@ const AdminDashboard = () => {
       setRemoveLoading('');
     }
   };
+
+  const token = auth.token || localStorage.getItem('token');
+  const API = getAdminApi(token);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 via-purple-100 to-white py-12 px-4 flex flex-col items-center relative">
@@ -894,27 +913,37 @@ const AdminDashboard = () => {
                   <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl shadow p-6">
                     <div className="mb-2 text-lg font-bold text-purple-700">File Details</div>
                     <div className="mb-1"><span className="font-semibold">Original Name:</span> {selectedOverviewFile.originalName}</div>
-                    <div className="mb-1"><span className="font-semibold">Filename:</span> {selectedOverviewFile.filename}</div>
                     <div className="mb-1"><span className="font-semibold">Size:</span> {formatFileSize(selectedOverviewFile.size)}</div>
                     <div className="mb-1"><span className="font-semibold">Status:</span> {selectedOverviewFile.status}</div>
                     <div className="mb-1"><span className="font-semibold">Columns:</span> {selectedOverviewFile.columns && selectedOverviewFile.columns.length > 0 ? selectedOverviewFile.columns.join(', ') : 'N/A'}</div>
                     <div className="mb-1"><span className="font-semibold">Uploaded By:</span> {selectedOverviewFile.user?.name} ({selectedOverviewFile.user?.email})</div>
                     <div className="mb-1"><span className="font-semibold">Created At:</span> {new Date(selectedOverviewFile.createdAt).toLocaleString()}</div>
-                    <div className="mb-1"><span className="font-semibold">Path:</span> {selectedOverviewFile.path}</div>
+                    <div className="mb-1"><span className="font-semibold">GridFS ID:</span> {selectedOverviewFile.gridFsId || <span className="text-gray-400">N/A</span>}</div>
                     <button
                       className="mt-4 px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 transition"
-                      onClick={() => {
-                        // Extract only the filename (after last slash or backslash)
-                        let filename = selectedOverviewFile.filename;
-                        if (!filename && selectedOverviewFile.path) {
-                          const parts = selectedOverviewFile.path.split(/[/\\]/);
-                          filename = parts[parts.length - 1];
+                      onClick={async () => {
+                        if (!selectedOverviewFile.gridFsId) {
+                          toast.error('No GridFS ID available for this file.');
+                          return;
                         }
-                        const url = `${BACKEND_URL}/uploads/${filename}`;
-                        window.open(url, '_blank');
+                        try {
+                          const response = await API.get(`/api/v1/files/download/${selectedOverviewFile.gridFsId}`, {
+                            responseType: 'blob',
+                          });
+                          const url = window.URL.createObjectURL(new Blob([response.data]));
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.setAttribute('download', selectedOverviewFile.originalName || 'file');
+                          document.body.appendChild(link);
+                          link.click();
+                          link.remove();
+                        } catch (error) {
+                          toast.error('Failed to download file.');
+                        }
                       }}
+                      disabled={!selectedOverviewFile.gridFsId}
                     >
-                      Open File
+                      Download File
                     </button>
                   </div>
                 )}
@@ -932,6 +961,7 @@ const AdminDashboard = () => {
         <h2 className="text-3xl font-bold text-center text-blue-700 mb-2">
           Welcome, {auth.user?.name ? auth.user.name : 'Admin'}!
         </h2>
+        <p className="text-center text-gray-500 mb-1">Admin Email: {auth.adminEmail || auth.user?.email || 'N/A'}</p>
         <p className="text-center text-gray-500 mb-6">Here you can manage users, view system stats, and monitor activity.</p>
         {statsLoading ? (
           <div className="text-center text-gray-400 py-8">Loading stats...</div>
@@ -958,7 +988,7 @@ const AdminDashboard = () => {
         )}
       </motion.div>
       <motion.div
-        className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-8"
+        className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8"
         initial="hidden"
         animate="visible"
         variants={{

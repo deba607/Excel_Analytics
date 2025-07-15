@@ -102,11 +102,17 @@ exports.verifyOTP = async (req, res) => {
 exports.resendOTP = async (req, res) => {
   try {
     const { email } = req.body;
-
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email'
+      });
+    }
     // Generate new OTP
     const otp = generateOTP();
     otpStore.set(email, { otp, expires: Date.now() + 300000 }); // 5 minutes expiry
-
     // Send email
     const mailOptions = {
       from: process.env.EMAIL_USER,
@@ -114,9 +120,7 @@ exports.resendOTP = async (req, res) => {
       subject: 'Your New OTP for Registration',
       text: `Your new OTP for registration is: ${otp}. It will expire in 5 minutes.`
     };
-
     await transporter.sendMail(mailOptions);
-
     res.status(200).json({
       success: true,
       message: 'New OTP sent successfully'

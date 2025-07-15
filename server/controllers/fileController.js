@@ -38,7 +38,7 @@ exports.uploadFiles = async (req, res) => {
     }
     
     // Get user email from the authenticated request
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.admin?.email;
     if (!userEmail) {
       return res.status(401).json({
         success: false,
@@ -151,7 +151,8 @@ exports.getFiles = async (req, res) => {
     });
 
     // Ensure user is authenticated
-    if (!req.user || !req.user.email) {
+    const userEmail = req.user?.email || req.admin?.email;
+    if (!userEmail) {
       console.log('[GetFiles] Authentication failed - no user or email');
       return res.status(401).json({ 
         success: false,
@@ -159,7 +160,6 @@ exports.getFiles = async (req, res) => {
       });
     }
 
-    const userEmail = req.user.email;
     console.log('[GetFiles] User email:', userEmail);
     
     // Basic query with user filter
@@ -250,7 +250,7 @@ exports.getFiles = async (req, res) => {
 exports.deleteFile = async (req, res) => {
   try {
     const { fileId } = req.params;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.admin?.email;
 
     if (!userEmail) {
       return res.status(401).json({
@@ -295,5 +295,38 @@ exports.deleteFile = async (req, res) => {
       error: 'Server error deleting file',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+};
+
+// @desc    Download file from GridFS
+// @route   GET /api/v1/files/download/:gridFsId
+// @access  Private
+exports.downloadFile = async (req, res) => {
+  try {
+    const { gridFsId } = req.params;
+    if (!gridFsId) {
+      return res.status(400).json({ success: false, message: 'Missing GridFS ID' });
+    }
+    const gridfsBucket = await getGridFSBucket();
+    // Find file metadata
+    const fileDoc = await File.findOne({ gridFsId });
+    if (!fileDoc) {
+      return res.status(404).json({ success: false, message: 'File not found in database' });
+    }
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileDoc.originalName}"`);
+    const downloadStream = gridfsBucket.openDownloadStream(new ObjectId(gridFsId));
+    downloadStream.on('error', (err) => {
+      console.error('GridFS download error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: 'Error downloading file' });
+      }
+    });
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error('Download file error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: 'Server error during file download' });
+    }
   }
 };
