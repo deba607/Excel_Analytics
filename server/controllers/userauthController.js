@@ -257,3 +257,45 @@ exports.registerAdmin = async (req, res) => {
 //     });
 //   }
 // };
+
+// Complete Google Signup
+exports.completeGoogleSignup = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    // Find user with signupComplete: false
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'No user found for this email.'
+      });
+    }
+    if (user.signupComplete) {
+      return res.status(400).json({
+        success: false,
+        message: 'Signup already completed for this email.'
+      });
+    }
+    // Only allow updating name and password
+    user.name = name;
+    user.password = password;
+    user.signupComplete = true;
+    await user.save();
+    const token = user.generateToken();
+    const userData = user.toObject();
+    delete userData.password;
+    res.status(200).json({
+      success: true,
+      message: 'Google signup completed successfully',
+      user: userData,
+      token
+    });
+  } catch (error) {
+    console.error('Complete Google Signup error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during Google signup completion',
+      error: error.message
+    });
+  }
+};

@@ -16,10 +16,11 @@ const adminLoginRouter = require('./router/adminLogin');
 
 const app = express();
 
+const FRONTEND_URL = process.env.FRONTEND_URL;
 // lets tackle CORS issue
 const corsOptions = {
-  origin: 'http://localhost:5173',
-  //origin: 'https://merndebanjan.netlify.app', // Replace with your frontend URL
+  origin: FRONTEND_URL,
+  //origin: 'https://excel-analytics-v1.netlify.app', // Replace with your frontend URL
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true, // Allow credentials (cookies, authorization headers, etc.)
 };

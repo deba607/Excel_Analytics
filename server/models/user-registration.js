@@ -23,6 +23,10 @@ const userSchema = new mongoose.Schema({
   isEmailVerified: {
     type: Boolean,
     default: false,
+  },
+  signupComplete: {
+    type: Boolean,
+    default: false,
   }
 });
 

@@ -4,6 +4,9 @@ const router = express.Router();
 const User = require('../models/user-registration');
 const jwt = require('jsonwebtoken');
 
+// Use a constant for the frontend URL
+const FRONTEND_URL = process.env.FRONTEND_URL;
+
 // Google OAuth Strategy
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 
@@ -13,19 +16,19 @@ passport.use(new GoogleStrategy({
   callbackURL: "http://localhost:8000/api/auth/google/callback",
 }, async (accessToken, refreshToken, profile, done) => {
   try {
-    // Check if user already exists
+    // Check if user already exists (completed or incomplete)
     let user = await User.findOne({ email: profile.emails[0].value });
-    
     if (!user) {
-      // Create new user if doesn't exist
+      // Create a user with signupComplete: false (not fully registered)
       user = new User({
         name: profile.displayName,
         email: profile.emails[0].value,
-        password: 'google-oauth-' + Math.random().toString(36).substring(7) // Random password for OAuth users
+        password: 'google-oauth-' + Math.random().toString(36).substring(7),
+        signupComplete: false
       });
       await user.save();
     }
-    
+    // If user exists (completed or incomplete), just use it
     return done(null, user);
   } catch (error) {
     return done(error, null);
@@ -52,11 +55,15 @@ router.get('/google', passport.authenticate('google', {
 
 router.get('/google/callback', 
   passport.authenticate('google', { 
-    failureRedirect: 'http://localhost:5173/login',
+    failureRedirect: `${FRONTEND_URL}/signup`,
     session: false 
   }), 
   async (req, res) => {
     try {
+      // If signup is not complete, redirect to signup page with Google info
+      if (!req.user.signupComplete) {
+        return res.redirect(`${FRONTEND_URL}/signup?google=1&email=${encodeURIComponent(req.user.email)}&name=${encodeURIComponent(req.user.name)}`);
+      }
       // Generate JWT token
       const token = jwt.sign(
         { 
@@ -65,14 +72,13 @@ router.get('/google/callback',
           role: 'user'
         }, 
         process.env.SECRET_KEY, 
-        { expiresIn: '7d' }
+        { expiresIn: '30d' }
       );
-
       // Redirect to frontend with token
-      res.redirect(`http://localhost:5173/auth-callback?token=${token}&email=${req.user.email}&name=${encodeURIComponent(req.user.name)}`);
+      res.redirect(`${FRONTEND_URL}/auth-callback?token=${token}&email=${req.user.email}&name=${encodeURIComponent(req.user.name)}`);
     } catch (error) {
       console.error('Google OAuth callback error:', error);
-      res.redirect('http://localhost:5173/login?error=oauth_failed');
+      res.redirect(`${FRONTEND_URL}/signup?error=oauth_failed`);
     }
   }
 );

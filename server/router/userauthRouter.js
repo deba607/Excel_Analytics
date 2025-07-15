@@ -12,6 +12,9 @@ router.post('/resend-otp', authController.resendOTP);
 // Registration route
 router.route("/register").post(validate (userValidator), authController.register);
 
+// Complete Google signup route
+router.post('/complete-google-signup', authController.completeGoogleSignup);
+
 // Admin registration route
 router.post('/register-admin', authController.registerAdmin);
 

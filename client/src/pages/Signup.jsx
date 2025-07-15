@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FaEnvelope, FaLock, FaUser, FaKey, FaArrowLeft, FaCheckCircle } from 'react-icons/fa';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
@@ -10,6 +10,20 @@ const API_URL = `${BACKEND_URL}/api/auth`;
 
 const Signup = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isGoogleSignup = new URLSearchParams(location.search).get('google') === '1';
+  // Prefill name/email from URL for Google signup
+  useEffect(() => {
+    if (isGoogleSignup) {
+      const params = new URLSearchParams(location.search);
+      setFormData(prev => ({
+        ...prev,
+        name: params.get('name') || '',
+        email: params.get('email') || ''
+      }));
+    }
+    // eslint-disable-next-line
+  }, [isGoogleSignup, location.search]);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     name: '',
@@ -201,6 +215,47 @@ const Signup = () => {
     }
   };
 
+  // Google signup handler
+  const handleGoogleSignup = async (e) => {
+    e.preventDefault();
+    // Validate fields
+    const newErrors = {};
+    if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Email is invalid';
+    }
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
+    }
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
+    try {
+      const response = await axios.post(`${API_URL}/complete-google-signup`, {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password
+      });
+      if (response.data.success) {
+        toast.success('Registration successful! Redirecting...');
+        localStorage.setItem('authToken', response.data.token);
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1500);
+      }
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Registration failed. Please try again.';
+      toast.error(errorMessage);
+      setServerError(errorMessage);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full flex flex-col justify-center items-center relative overflow-hidden bg-gradient-to-br from-teal-400 via-emerald-400 to-lime-200 animate-gradient-move">
       {/* Animated background (example: animated waves) */}
@@ -221,10 +276,10 @@ const Signup = () => {
           Create your account
         </h2>
         <div>
-          <form onSubmit={step === 1 ? handleGetOTP : handleSubmit} className="space-y-6">
-            {step === 1 ? (
+          <form onSubmit={isGoogleSignup ? handleGoogleSignup : (step === 1 ? handleGetOTP : handleSubmit)} className="space-y-6">
+            {isGoogleSignup ? (
               <>
-                {/* Name, Email, Password, Confirm Password fields */}
+                {/* Name, Email, Password, Confirm Password fields for Google signup */}
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700">
                     Full Name
@@ -241,12 +296,10 @@ const Signup = () => {
                       onChange={handleChange}
                       className={`block w-full pl-10 pr-3 py-2 border ${errors.name ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md`}
                       placeholder="John Doe"
-                      disabled={otpSent}
                     />
                   </div>
                   {errors.name && <p className="mt-2 text-sm text-red-600">{errors.name}</p>}
                 </div>
-
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                     Email address
@@ -261,15 +314,13 @@ const Signup = () => {
                       type="email"
                       autoComplete="email"
                       value={formData.email}
-                      onChange={handleChange}
-                      className={`block w-full pl-10 pr-3 py-2 border ${errors.email ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md`}
+                      readOnly
+                      className={`block w-full pl-10 pr-3 py-2 border ${errors.email ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md bg-gray-100`}
                       placeholder="you@example.com"
-                      disabled={otpSent}
                     />
                   </div>
                   {errors.email && <p className="mt-2 text-sm text-red-600">{errors.email}</p>}
                 </div>
-
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                     Password
@@ -287,12 +338,10 @@ const Signup = () => {
                       onChange={handleChange}
                       className={`block w-full pl-10 pr-3 py-2 border ${errors.password ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md`}
                       placeholder="••••••••"
-                      disabled={otpSent}
                     />
                   </div>
                   {errors.password && <p className="mt-2 text-sm text-red-600">{errors.password}</p>}
                 </div>
-
                 <div>
                   <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
                     Confirm Password
@@ -310,118 +359,223 @@ const Signup = () => {
                       onChange={handleChange}
                       className={`block w-full pl-10 pr-3 py-2 border ${errors.confirmPassword ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md`}
                       placeholder="••••••••"
-                      disabled={otpSent}
                     />
                   </div>
                   {errors.confirmPassword && <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p>}
                 </div>
-
-                <div className="mt-6 grid grid-cols-2 gap-3">
-                  <div>
-                    <a
-                      href={`${API_URL}/google`}
-                      className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-                    >
-                      <span className="sr-only">Sign up with Google</span>
-                      <svg className="w-5 h-5" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,14.991,2,12.145,2C6.667,2,2.145,6.521,2.145,12s4.521,10,10,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z" />
-                      </svg>
-                    </a>
-                  </div>
-                </div>
                 <div>
                   <button
                     type="submit"
-                    disabled={otpSending}
-                    className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${otpSending ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
-                  >
-                    {otpSending ? 'Sending OTP...' : 'Get OTP'}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-6">
-                <div className="text-center">
-                  <p className="text-sm text-gray-600">
-                    We've sent a 6-digit verification code to <span className="font-medium">{formData.email}</span>.
-                    Please enter it below to verify your email address.
-                  </p>
-                </div>
-
-                <div>
-                  <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-2">
-                    Verification Code
-                  </label>
-                  <div className="flex space-x-2">
-                    <input
-                      id="otp"
-                      name="otp"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={6}
-                      value={otp}
-                      onChange={handleOtpChange}
-                      className="flex-1 min-w-0 block w-full px-4 py-3 text-center text-lg border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
-                      placeholder="000000"
-                      disabled={otpVerified}
-                    />
-                    {!otpVerified && (
-                      <button
-                        type="button"
-                        onClick={handleVerifyOTP}
-                        disabled={verifying || otp.length !== 6}
-                        className={`ml-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${verifying || otp.length !== 6 ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
-                      >
-                        {verifying ? 'Verifying...' : 'Verify'}
-                      </button>
-                    )}
-                  </div>
-                  {otpVerified && (
-                    <div className="mt-2 flex items-center text-sm text-green-600">
-                      <FaCheckCircle className="mr-1.5 h-4 w-4 flex-shrink-0" />
-                      Email verified successfully!
-                    </div>
-                  )}
-                  {errors.otp && <p className="mt-2 text-sm text-red-600">{errors.otp}</p>}
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="text-sm">
-                    <button
-                      type="button"
-                      onClick={() => setStep(1)}
-                      className="font-medium text-emerald-600 hover:text-emerald-500 focus:outline-none"
-                    >
-                      <FaArrowLeft className="inline mr-1" /> Back
-                    </button>
-                  </div>
-                  <div className="text-sm">
-                    <button
-                      type="button"
-                      onClick={resendOTP}
-                      disabled={countdown > 0 || otpSending}
-                      className="font-medium text-emerald-600 hover:text-emerald-500 focus:outline-none disabled:text-gray-400"
-                    >
-                      {otpSending 
-                        ? 'Sending...' 
-                        : countdown > 0 
-                          ? `Resend OTP in ${countdown}s` 
-                          : 'Resend OTP'}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <button
-                    type="submit"
-                    disabled={!otpVerified}
-                    className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${!otpVerified ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500`}
+                    className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
                   >
                     Create Account
                   </button>
                 </div>
-              </div>
+              </>
+            ) : (
+              <>
+                {step === 1 ? (
+                  <>
+                    {/* Name, Email, Password, Confirm Password fields */}
+                    <div>
+                      <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                        Full Name
+                      </label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <FaUser className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                          id="name"
+                          name="name"
+                          type="text"
+                          value={formData.name}
+                          onChange={handleChange}
+                          className={`block w-full pl-10 pr-3 py-2 border ${errors.name ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md`}
+                          placeholder="John Doe"
+                          disabled={otpSent}
+                        />
+                      </div>
+                      {errors.name && <p className="mt-2 text-sm text-red-600">{errors.name}</p>}
+                    </div>
+
+                    <div>
+                      <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                        Email address
+                      </label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <FaEnvelope className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                          id="email"
+                          name="email"
+                          type="email"
+                          autoComplete="email"
+                          value={formData.email}
+                          onChange={handleChange}
+                          className={`block w-full pl-10 pr-3 py-2 border ${errors.email ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md`}
+                          placeholder="you@example.com"
+                          disabled={otpSent}
+                        />
+                      </div>
+                      {errors.email && <p className="mt-2 text-sm text-red-600">{errors.email}</p>}
+                    </div>
+
+                    <div>
+                      <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                        Password
+                      </label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <FaLock className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                          id="password"
+                          name="password"
+                          type="password"
+                          autoComplete="new-password"
+                          value={formData.password}
+                          onChange={handleChange}
+                          className={`block w-full pl-10 pr-3 py-2 border ${errors.password ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md`}
+                          placeholder="••••••••"
+                          disabled={otpSent}
+                        />
+                      </div>
+                      {errors.password && <p className="mt-2 text-sm text-red-600">{errors.password}</p>}
+                    </div>
+
+                    <div>
+                      <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+                        Confirm Password
+                      </label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <FaKey className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                          id="confirmPassword"
+                          name="confirmPassword"
+                          type="password"
+                          autoComplete="new-password"
+                          value={formData.confirmPassword}
+                          onChange={handleChange}
+                          className={`block w-full pl-10 pr-3 py-2 border ${errors.confirmPassword ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500'} rounded-md`}
+                          placeholder="••••••••"
+                          disabled={otpSent}
+                        />
+                      </div>
+                      {errors.confirmPassword && <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p>}
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-2 gap-3">
+                      <div>
+                        <a
+                          href={`${API_URL}/google`}
+                          className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                        >
+                          <span className="sr-only">Sign up with Google</span>
+                          <svg className="w-5 h-5" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,14.991,2,12.145,2C6.667,2,2.145,6.521,2.145,12s4.521,10,10,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z" />
+                          </svg>
+                        </a>
+                      </div>
+                    </div>
+                    <div>
+                      <button
+                        type="submit"
+                        disabled={otpSending}
+                        className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${otpSending ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
+                      >
+                        {isGoogleSignup ? 'Create Account' : (otpSending ? 'Sending OTP...' : 'Get OTP')}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600">
+                        We've sent a 6-digit verification code to <span className="font-medium">{formData.email}</span>.
+                        Please enter it below to verify your email address.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-2">
+                        Verification Code
+                      </label>
+                      <div className="flex space-x-2">
+                        <input
+                          id="otp"
+                          name="otp"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={6}
+                          value={otp}
+                          onChange={handleOtpChange}
+                          className="flex-1 min-w-0 block w-full px-4 py-3 text-center text-lg border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="000000"
+                          disabled={otpVerified}
+                        />
+                        {!otpVerified && (
+                          <button
+                            type="button"
+                            onClick={handleVerifyOTP}
+                            disabled={verifying || otp.length !== 6}
+                            className={`ml-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${verifying || otp.length !== 6 ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
+                          >
+                            {verifying ? 'Verifying...' : 'Verify'}
+                          </button>
+                        )}
+                      </div>
+                      {otpVerified && (
+                        <div className="mt-2 flex items-center text-sm text-green-600">
+                          <FaCheckCircle className="mr-1.5 h-4 w-4 flex-shrink-0" />
+                          Email verified successfully!
+                        </div>
+                      )}
+                      {errors.otp && <p className="mt-2 text-sm text-red-600">{errors.otp}</p>}
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm">
+                        <button
+                          type="button"
+                          onClick={() => setStep(1)}
+                          className="font-medium text-emerald-600 hover:text-emerald-500 focus:outline-none"
+                        >
+                          <FaArrowLeft className="inline mr-1" /> Back
+                        </button>
+                      </div>
+                      <div className="text-sm">
+                        <button
+                          type="button"
+                          onClick={resendOTP}
+                          disabled={countdown > 0 || otpSending}
+                          className="font-medium text-emerald-600 hover:text-emerald-500 focus:outline-none disabled:text-gray-400"
+                        >
+                          {otpSending 
+                            ? 'Sending...' 
+                            : countdown > 0 
+                              ? `Resend OTP in ${countdown}s` 
+                              : 'Resend OTP'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <button
+                        type="submit"
+                        disabled={!otpVerified}
+                        className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${!otpVerified ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500`}
+                      >
+                        Create Account
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </form>
           {/* Already have an account? */}
