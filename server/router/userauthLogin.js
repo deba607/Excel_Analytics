@@ -18,6 +18,11 @@ router.post('/send-login-otp', sendLoginOTP);
 router.post('/verify-login-otp', verifyLoginOTP);
 router.post('/resend-login-otp', resendLoginOTP);
 
+// Add password reset routes
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
+router.post('/verify-reset-otp', verifyResetOtp);
+
 // Admin login OTP routes
 router.post('/send-admin-login-otp', sendAdminLoginOTP);
 router.post('/verify-admin-login-otp', verifyAdminLoginOTP);
