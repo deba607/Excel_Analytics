@@ -468,7 +468,7 @@ const Signup = () => {
                       {errors.confirmPassword && <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p>}
                     </div>
 
-                    <div className="mt-6 grid grid-cols-2 gap-3">
+                    <div className="mt-6 grid grid-cols-1 gap-3">
                       <div>
                         <a
                           href={`${API_URL}/google`}
