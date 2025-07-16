@@ -859,13 +859,13 @@ const AdminDashboard = () => {
                                   {downloading[report._id] ? 'Downloading...' : 'PDF'}
                                 </button>
                                 <button
-                                  onClick={() => handleDownload(report, 'svg')}
+                                  onClick={() => handleDownload(report, 'jpg')}
                                   className={`px-3 py-1 bg-green-600 text-white rounded-full text-sm font-semibold hover:bg-green-700 transition ${
                                     downloading[report._id] ? 'opacity-50 cursor-not-allowed' : ''
                                   }`}
                                   disabled={downloading[report._id]}
                                 >
-                                  {downloading[report._id] ? 'Downloading...' : 'SVG'}
+                                  {downloading[report._id] ? 'Downloading...' : 'JPG'}
                                 </button>
                               </>
                             )}
