@@ -22,9 +22,9 @@ const Navbar = () => {
   }, []);
 
   const navItems = [
-    { name: 'Features', path: '/#features' },
-    { name: 'Pricing', path: '/#pricing' },
-    { name: 'Contact', path: '/#contact' },
+    { name: 'Features', path: '/features' },
+    { name: 'Pricing', path: '/pricing' },
+    { name: 'Contact', path: '/contact' },
   ];
 
   const container = {
