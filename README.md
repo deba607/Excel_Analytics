@@ -1,59 +1,65 @@
-# Excel Analytics Platform
+# 🚀 Excel Analytics Platform
 
-A comprehensive web application for Excel data analysis, visualization, and reporting.
+A modern web application for advanced Excel/CSV data analysis, visualization, and reporting. Empower your business with AI-powered insights, beautiful dashboards, and secure file management—all in one place.
 
-## Features
+---
 
-- **Data Import**: Upload Excel, CSV, and JSON files
-- **Data Analysis**: Generate insights and statistics
-- **Visualization**: Create charts and graphs
-- **User Authentication**: Secure login with OTP verification
-- **File Management**: Organize and manage uploaded files
-- **Export Capabilities**: Download analysis results
+## ✨ Features
 
-## Tech Stack
+- **Data Import:** Upload Excel, CSV, and JSON files with ease
+- **Advanced Analytics:** Generate insights, summary statistics, and trends
+- **Interactive Visualization:** Create charts and dashboards (bar, line, pie, doughnut, radar, polar area)
+- **AI-Powered Automation:** Smart workflow optimization and predictive analytics
+- **User Authentication:** Secure OTP-based login, Google OAuth, password reset
+- **File Management:** Organize, search, and manage uploaded files
+- **Report Generation:** Export analysis results as PDF, CSV, and more
+- **Admin Dashboard:** Manage users, files, and reports with advanced controls
 
-### Frontend
-- React 19
-- Vite
-- Tailwind CSS
-- React Router DOM
-- Axios
-- Chart.js
-- React Hot Toast
+---
 
-### Backend
-- Node.js
-- Express.js
-- MongoDB with Mongoose
-- JWT Authentication
-- Multer for file uploads
-- Nodemailer for email services
+## 🛠️ Tech Stack
 
-## Project Structure
+**Frontend:**
+- React 19, Vite, Tailwind CSS
+- React Router DOM, Axios
+- Chart.js, React Hot Toast, Framer Motion
+
+**Backend:**
+- Node.js, Express.js
+- MongoDB (with GridFS for file storage)
+- Mongoose, JWT Authentication
+- Multer (file uploads), Nodemailer (email/OTP)
+- Zod (validation), Passport (Google OAuth)
+
+---
+
+## 📁 Project Structure
 
 ```
-├── client/                 # React frontend
+Excel_Analytics/
+├── client/           # React frontend
 │   ├── src/
-│   │   ├── components/     # Reusable components
-│   │   ├── pages/         # Page components
-│   │   ├── store/         # State management
-│   │   └── assets/        # Static assets
+│   │   ├── components/   # UI components
+│   │   ├── pages/        # Page views
+│   │   ├── store/        # State management
+│   │   └── assets/       # Static assets
 │   └── package.json
-├── server/                 # Node.js backend
-│   ├── controllers/       # Route controllers
-│   ├── models/           # Database models
-│   ├── middlewares/      # Custom middlewares
-│   ├── router/           # API routes
-│   ├── utils/            # Utility functions
+├── server/           # Node.js backend
+│   ├── controllers/  # Route controllers
+│   ├── models/       # Database models
+│   ├── middlewares/  # Express middlewares
+│   ├── router/       # API routes
+│   ├── utils/        # Utility functions
 │   └── package.json
 └── README.md
 ```
 
-## Getting Started
+---
+
+## 🚦 Getting Started
 
 ### Prerequisites
-- Node.js (v16 or higher)
+- Node.js (v16+)
 - MongoDB
 - npm or yarn
 
@@ -64,22 +70,18 @@ A comprehensive web application for Excel data analysis, visualization, and repo
    git clone <repository-url>
    cd Excel_Analytics
    ```
-
-2. **Install server dependencies**
+2. **Install backend dependencies**
    ```bash
    cd server
    npm install
    ```
-
-3. **Install client dependencies**
+3. **Install frontend dependencies**
    ```bash
    cd ../client
    npm install
    ```
-
 4. **Environment Setup**
-   
-   Create a `.env` file in the server directory:
+   Create a `.env` file in the `server/` directory:
    ```env
    MONGO_DB_URI=mongodb://localhost:27017/excel_analytics
    SECRET_KEY=your_jwt_secret_key_here
@@ -87,58 +89,66 @@ A comprehensive web application for Excel data analysis, visualization, and repo
    EMAIL_PASS=your_app_password_here
    PORT=8000
    NODE_ENV=development
+   FRONTEND_URL=http://localhost:5173
    ```
+5. **Start the servers**
+   - Backend: `cd server && npm start`
+   - Frontend: `cd client && npm run dev`
 
-5. **Start the development servers**
+6. **Access the app**
+   - Frontend: [http://localhost:5173](http://localhost:5173)
+   - Backend API: [http://localhost:8000](http://localhost:8000)
 
-   **Start the backend server:**
-   ```bash
-   cd server
-   npm start
-   ```
+---
 
-   **Start the frontend development server:**
-   ```bash
-   cd client
-   npm run dev
-   ```
+## 🧭 Usage Guide
 
-6. **Access the application**
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:8000
+- **Sign Up / Login:** Register with email, verify OTP, or use Google OAuth
+- **Dashboard:** Import files, analyze data, generate charts, and download reports
+- **Admin:** Access advanced management features for users, files, and reports
 
-## API Endpoints
+---
+
+## 🔗 API Endpoints (Summary)
 
 ### Authentication
-- `POST /api/auth/send-otp` - Send registration OTP
-- `POST /api/auth/verify-otp` - Verify registration OTP
-- `POST /api/auth/register` - User registration
-- `POST /api/authLogin/send-login-otp` - Send login OTP
-- `POST /api/authLogin/verify-login-otp` - Verify login OTP
+- `POST /api/auth/send-otp` — Send registration OTP
+- `POST /api/auth/verify-otp` — Verify registration OTP
+- `POST /api/auth/register` — User registration
+- `POST /api/authLogin/send-login-otp` — Send login OTP
+- `POST /api/authLogin/verify-login-otp` — Verify login OTP
 
 ### Files
-- `POST /api/files` - Upload files
-- `GET /api/files/getfiles` - Get user files
-- `DELETE /api/files/:fileId` - Delete file
+- `POST /api/v1/files` — Upload files
+- `GET /api/v1/files/getfiles` — List user files
+- `DELETE /api/v1/files/:fileId` — Delete file
 
 ### Analysis
-- `GET /api/v1/analysis` - Generate analysis
-- `GET /api/v1/analysis/generate` - Generate specific analysis
+- `GET /api/v1/analysis` — Get analysis summary
+- `GET /api/v1/analysis/generate` — Generate specific analysis/chart
 
-## Development
+---
 
-### Code Quality
-- ESLint configuration for both client and server
-- Consistent code formatting
-- Error handling best practices
+## 🗃️ Data Models (Backend)
 
-### Security
-- JWT-based authentication
+- **User_Registration**: `{ name, email, password (hashed), isAdmin, googleId, isEmailVerified, signupComplete }`
+- **Admin**: `{ name, email, password (hashed) }`
+- **File**: `{ gridFsId, originalName, size, userEmail, status, columns, timestamps }`
+- **Analysis**: `{ userEmail, fileId, fileName, chartType, xAxis, yAxis, reportGridFsId, createdAt, updatedAt }`
+- **Otp**: `{ email, otp, type, expiresAt }`
+
+---
+
+## 🛡️ Security & Best Practices
+- JWT-based authentication for all protected routes
+- OTP verification for registration and login
 - Input validation with Zod
-- CORS configuration
-- Secure file upload handling
+- CORS and secure file upload handling
+- Passwords hashed with bcrypt
 
-## Contributing
+---
+
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -146,6 +156,12 @@ A comprehensive web application for Excel data analysis, visualization, and repo
 4. Test thoroughly
 5. Submit a pull request
 
-## License
+---
 
-This project is licensed under the MIT License.
+## 📄 License
+
+MIT License
+
+---
+
+> **Excel Analytics Platform** — Empowering data-driven decisions with modern analytics.
