@@ -1,6 +1,6 @@
 # 🚀 Excel Analytics Platform
 
-A modern web application for advanced Excel/CSV data analysis, visualization, and reporting. Empower your business with AI-powered insights, beautiful dashboards, and secure file management—all in one place.
+A modern web application for advanced Excel/CSV data analysis, visualization, and reporting. Empower your business with AI-powered insights, beautiful dashboards, and secure file management—all in one place. It is very easy to use for everyone.
 
 ---
 
